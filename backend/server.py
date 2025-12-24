@@ -190,28 +190,111 @@ async def tts_chunk_to_audio(client: ElevenLabs, text: str) -> bytes:
 
 def merge_audio_chunks(audio_chunks: list[bytes]) -> tuple[bytes, float]:
     """
-    Merge multiple MP3 audio chunks into a single MP3 file.
+    Merge multiple MP3 audio chunks into a single MP3 file using ffmpeg directly.
     Returns (merged_bytes, duration_seconds)
     """
-    combined = None
-    
-    for chunk_bytes in audio_chunks:
-        segment = AudioSegment.from_mp3(BytesIO(chunk_bytes))
-        if combined is None:
-            combined = segment
-        else:
-            combined = combined + segment
-    
-    if combined is None:
+    if not audio_chunks:
         raise ValueError("No audio chunks to merge")
     
-    # Export to MP3 bytes
-    output_buffer = BytesIO()
-    combined.export(output_buffer, format="mp3", bitrate="128k")
-    output_buffer.seek(0)
+    # If only one chunk, return it directly
+    if len(audio_chunks) == 1:
+        # Get duration using ffmpeg
+        with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmp:
+            tmp.write(audio_chunks[0])
+            tmp_path = tmp.name
+        
+        try:
+            # Get duration using ffmpeg
+            result = subprocess.run(
+                [FFMPEG_PATH, '-i', tmp_path, '-f', 'null', '-'],
+                capture_output=True,
+                text=True
+            )
+            # Parse duration from stderr (ffmpeg outputs info there)
+            duration = 0.0
+            for line in result.stderr.split('\n'):
+                if 'Duration:' in line:
+                    time_str = line.split('Duration:')[1].split(',')[0].strip()
+                    parts = time_str.split(':')
+                    if len(parts) == 3:
+                        h, m, s = parts
+                        duration = float(h) * 3600 + float(m) * 60 + float(s)
+                    break
+            return audio_chunks[0], duration
+        finally:
+            os.unlink(tmp_path)
     
-    duration_seconds = len(combined) / 1000.0
-    return output_buffer.read(), duration_seconds
+    # Multiple chunks - create temp files and merge
+    temp_files = []
+    try:
+        # Write all chunks to temp files
+        for i, chunk in enumerate(audio_chunks):
+            tmp = tempfile.NamedTemporaryFile(suffix='.mp3', delete=False)
+            tmp.write(chunk)
+            tmp.close()
+            temp_files.append(tmp.name)
+        
+        # Create concat file for ffmpeg
+        concat_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
+        for f in temp_files:
+            concat_file.write(f"file '{f}'\n")
+        concat_file.close()
+        
+        # Output file
+        output_file = tempfile.NamedTemporaryFile(suffix='.mp3', delete=False)
+        output_file.close()
+        
+        # Run ffmpeg concat
+        result = subprocess.run(
+            [
+                FFMPEG_PATH,
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', concat_file.name,
+                '-c', 'copy',
+                '-y',
+                output_file.name
+            ],
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode != 0:
+            raise RuntimeError(f"ffmpeg merge failed: {result.stderr}")
+        
+        # Read merged file
+        with open(output_file.name, 'rb') as f:
+            merged_data = f.read()
+        
+        # Get duration from the merged file
+        result = subprocess.run(
+            [FFMPEG_PATH, '-i', output_file.name, '-f', 'null', '-'],
+            capture_output=True,
+            text=True
+        )
+        duration = 0.0
+        for line in result.stderr.split('\n'):
+            if 'Duration:' in line:
+                time_str = line.split('Duration:')[1].split(',')[0].strip()
+                parts = time_str.split(':')
+                if len(parts) == 3:
+                    h, m, s = parts
+                    duration = float(h) * 3600 + float(m) * 60 + float(s)
+                break
+        
+        # Clean up
+        os.unlink(concat_file.name)
+        os.unlink(output_file.name)
+        
+        return merged_data, duration
+        
+    finally:
+        # Clean up temp files
+        for f in temp_files:
+            try:
+                os.unlink(f)
+            except:
+                pass
 
 
 async def send_webhook(job_id: str, name: str, audio_url: str, status: str, text_length: int, chunk_count: int):
