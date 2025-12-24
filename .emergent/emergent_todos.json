@@ -22,5 +22,13 @@
   {
     "content": "Phase 2: All user stories covered and verified",
     "status": "completed"
+  },
+  {
+    "content": "Design Update: Jobs as cards with progress bars, sophisticated UI",
+    "status": "completed"
+  },
+  {
+    "content": "Fix: Changed ElevenLabs model to eleven_v3",
+    "status": "completed"
   }
 ]
