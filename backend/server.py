@@ -38,7 +38,7 @@ STORAGE_DIR = "/app/backend/storage"
 print(f"ElevenLabs API Key loaded: {'Yes' if ELEVENLABS_API_KEY else 'No'}")
 
 # Constants
-MAX_CHUNK_SIZE = 10000  # ElevenLabs v3 max characters per request
+MAX_CHUNK_SIZE = 4500  # ElevenLabs eleven_v3 max is 5000 chars, using 4500 for safety
 
 # Ensure storage directory exists
 os.makedirs(STORAGE_DIR, exist_ok=True)
