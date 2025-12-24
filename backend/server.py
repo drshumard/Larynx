@@ -293,7 +293,7 @@ async def process_tts_job(job_id: str):
         print(f"Merging {len(audio_chunks)} audio chunks for job {job_id}")
         await db.jobs.update_one(
             {"_id": ObjectId(job_id)},
-            {"$set": {"progress": 95, "updated_at": datetime.utcnow()}}
+            {"$set": {"status": "merging", "stage": "Merging audio chunks...", "progress": 90, "updated_at": datetime.utcnow()}}
         )
         
         merged_audio, duration = await asyncio.to_thread(
@@ -301,6 +301,11 @@ async def process_tts_job(job_id: str):
         )
         
         # Save to file
+        await db.jobs.update_one(
+            {"_id": ObjectId(job_id)},
+            {"$set": {"stage": "Saving audio file...", "progress": 95, "updated_at": datetime.utcnow()}}
+        )
+        
         audio_path = os.path.join(STORAGE_DIR, f"{job_id}.mp3")
         with open(audio_path, "wb") as f:
             f.write(merged_audio)
@@ -313,6 +318,7 @@ async def process_tts_job(job_id: str):
                 "$set": {
                     "status": "completed",
                     "progress": 100,
+                    "stage": "Complete",
                     "audio_path": audio_path,
                     "audio_url": audio_url,
                     "duration_seconds": duration,
