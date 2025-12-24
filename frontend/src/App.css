@@ -715,6 +715,44 @@ body {
   color: var(--text-muted);
 }
 
+/* Job Error */
+.job-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: var(--danger-bg);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: var(--radius-sm);
+}
+
+.job-error svg {
+  flex-shrink: 0;
+  color: var(--danger);
+  margin-top: 2px;
+}
+
+.error-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.error-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.error-message {
+  font-size: 12px;
+  color: #7f1d1d;
+  word-break: break-word;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+}
+
 /* Job Actions */
 .job-actions {
   display: flex;
