@@ -11,6 +11,10 @@ from io import BytesIO
 from datetime import datetime
 from typing import Optional
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,6 +33,9 @@ ELEVENLABS_VOICE_ID = os.environ.get("ELEVENLABS_VOICE_ID", "LNHBM9NjjOl44Efsdmt
 ELEVENLABS_MODEL = os.environ.get("ELEVENLABS_MODEL", "eleven_multilingual_v2")
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "")
 STORAGE_DIR = "/app/backend/storage"
+
+# Debug: Print API key status
+print(f"ElevenLabs API Key loaded: {'Yes' if ELEVENLABS_API_KEY else 'No'}")
 
 # Constants
 MAX_CHUNK_SIZE = 10000  # ElevenLabs v3 max characters per request
