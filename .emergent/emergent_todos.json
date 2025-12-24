@@ -1,0 +1,26 @@
+[
+  {
+    "content": "Phase 1: Core POC - Test ElevenLabs TTS + chunking + audio merge",
+    "status": "in_progress"
+  },
+  {
+    "content": "Phase 1: Verify webhook delivery to n8n endpoint",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 2: Backend - Build FastAPI endpoints and background processing",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 2: Frontend - Build React UI with Inter font, cream/black palette",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 2: End-to-end testing with testing_agent",
+    "status": "pending"
+  },
+  {
+    "content": "Phase 2: All user stories covered and verified",
+    "status": "pending"
+  }
+]
