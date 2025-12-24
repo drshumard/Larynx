@@ -398,6 +398,7 @@ async def create_job(job_data: JobCreate, background_tasks: BackgroundTasks):
         "processed_chunks": 0,
         "chunks": chunks,
         "status": "queued",
+        "stage": "Waiting in queue...",
         "progress": 0,
         "error": None,
         "audio_path": None,
