@@ -17,112 +17,184 @@ import {
   CheckCircle2,
   ChevronRight,
   Volume2,
-  AudioLines,
-  Sparkles
+  Sparkles,
+  XCircle,
+  TrendingUp,
+  Activity,
+  Timer,
+  Layers,
+  ArrowRight,
+  Info,
+  MoreHorizontal,
+  StopCircle
 } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 
-// Job Card Component - Each job displayed as a card
-const JobCard = ({ job, onDownload, onDelete }) => {
+// Format duration helper
+const formatDuration = (seconds) => {
+  if (!seconds) return '--:--';
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  if (hrs > 0) {
+    return `${hrs}h ${mins}m`;
+  }
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
+
+// Format date helper
+const formatDate = (dateString) => {
+  const date = new Date(dateString);
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+
+// Stats Card Component
+const StatsCard = ({ icon: Icon, value, label, trend, color = 'default' }) => (
+  <div className={`stats-card ${color}`}>
+    <div className="stats-card-header">
+      <div className="stats-icon">
+        <Icon className="w-5 h-5" />
+      </div>
+      {trend && (
+        <span className={`trend ${trend > 0 ? 'positive' : 'negative'}`}>
+          <TrendingUp className="w-3 h-3" />
+          {Math.abs(trend)}%
+        </span>
+      )}
+    </div>
+    <div className="stats-value">{value}</div>
+    <div className="stats-label">{label}</div>
+  </div>
+);
+
+// Progress Ring Component
+const ProgressRing = ({ progress, size = 60, strokeWidth = 6 }) => {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = radius * 2 * Math.PI;
+  const offset = circumference - (progress / 100) * circumference;
+  
+  return (
+    <svg width={size} height={size} className="progress-ring">
+      <circle
+        className="progress-ring-bg"
+        strokeWidth={strokeWidth}
+        fill="transparent"
+        r={radius}
+        cx={size / 2}
+        cy={size / 2}
+      />
+      <circle
+        className="progress-ring-fill"
+        strokeWidth={strokeWidth}
+        fill="transparent"
+        r={radius}
+        cx={size / 2}
+        cy={size / 2}
+        strokeDasharray={circumference}
+        strokeDashoffset={offset}
+        strokeLinecap="round"
+      />
+      <text
+        x="50%"
+        y="50%"
+        textAnchor="middle"
+        dy="0.35em"
+        className="progress-ring-text"
+      >
+        {progress}%
+      </text>
+    </svg>
+  );
+};
+
+// Job Card Component
+const JobCard = ({ job, onDownload, onDelete, onCancel }) => {
   const isDone = job.status === 'completed';
   const isFailed = job.status === 'failed';
   const isProcessing = ['queued', 'chunking', 'transcribing', 'merging'].includes(job.status);
+  const isStuck = isProcessing && (new Date() - new Date(job.updated_at)) > 120000; // 2 min no update = stuck
   
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  const getStatusInfo = () => {
+    if (isDone) return { label: 'Completed', color: 'success' };
+    if (isFailed) return { label: 'Failed', color: 'danger' };
+    if (isStuck) return { label: 'Stuck', color: 'warning' };
+    return { label: job.status, color: 'processing' };
   };
   
-  const formatDuration = (seconds) => {
-    if (!seconds) return '--:--';
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-  
-  const getStatusColor = () => {
-    switch (job.status) {
-      case 'completed': return 'status-completed';
-      case 'failed': return 'status-failed';
-      case 'queued': return 'status-queued';
-      default: return 'status-processing';
-    }
-  };
-  
-  const getStatusIcon = () => {
-    switch (job.status) {
-      case 'completed': return <CheckCircle2 className="w-4 h-4" />;
-      case 'failed': return <AlertCircle className="w-4 h-4" />;
-      case 'queued': return <Clock className="w-4 h-4" />;
-      default: return <Loader2 className="w-4 h-4 animate-spin" />;
-    }
-  };
+  const status = getStatusInfo();
 
   return (
-    <div className={`job-card ${isDone ? 'completed' : ''} ${isFailed ? 'failed' : ''}`} data-testid={`jobs-table-row-${job.id}`}>
-      {/* Card Header */}
-      <div className="job-card-header">
-        <div className="job-card-title">
-          <div className="job-icon">
-            <Volume2 className="w-5 h-5" />
+    <div className={`job-card ${status.color}`} data-testid={`jobs-table-row-${job.id}`}>
+      <div className="job-card-main">
+        {/* Left: Progress Ring */}
+        <div className="job-progress-section">
+          <ProgressRing progress={job.progress} />
+        </div>
+        
+        {/* Middle: Job Info */}
+        <div className="job-info-section">
+          <div className="job-header">
+            <h3 className="job-name" data-testid="job-name-cell">{job.name}</h3>
+            <span className={`status-badge ${status.color}`} data-testid="job-status-badge">
+              {isDone && <CheckCircle2 className="w-3 h-3" />}
+              {isFailed && <AlertCircle className="w-3 h-3" />}
+              {isProcessing && !isStuck && <Loader2 className="w-3 h-3 animate-spin" />}
+              {isStuck && <AlertCircle className="w-3 h-3" />}
+              {status.label}
+            </span>
           </div>
-          <div className="job-info">
-            <h3 data-testid="job-name-cell">{job.name}</h3>
-            <span className="job-meta">{job.text_length?.toLocaleString()} characters • {job.chunk_count} chunk{job.chunk_count !== 1 ? 's' : ''}</span>
+          
+          <div className="job-meta-row">
+            <span className="meta-item">
+              <FileText className="w-3.5 h-3.5" />
+              {job.text_length?.toLocaleString()} chars
+            </span>
+            <span className="meta-item">
+              <Layers className="w-3.5 h-3.5" />
+              {job.processed_chunks}/{job.chunk_count} chunks
+            </span>
+            {isDone && job.duration_seconds && (
+              <span className="meta-item">
+                <Timer className="w-3.5 h-3.5" />
+                {formatDuration(job.duration_seconds)}
+              </span>
+            )}
+          </div>
+          
+          {/* Progress Bar */}
+          <div className="job-progress-bar" data-testid="job-progress-bar">
+            <div 
+              className={`progress-fill ${status.color}`}
+              style={{ width: `${job.progress}%` }}
+            />
+          </div>
+          
+          <div className="job-stage">
+            {isProcessing ? (job.stage || 'Processing...') : (isDone ? 'Complete' : job.error ? 'Error occurred' : 'Failed')}
           </div>
         </div>
-        <div className={`status-badge ${getStatusColor()}`} data-testid="job-status-badge">
-          {getStatusIcon()}
-          <span>{job.status}</span>
-        </div>
-      </div>
-      
-      {/* Progress Section */}
-      <div className="job-card-progress">
-        <div className="progress-header">
-          <span className="progress-label">
-            {isProcessing ? (job.stage || 'Processing...') : (isDone ? 'Complete' : 'Failed')}
-          </span>
-          <span className="progress-value">{job.progress}%</span>
-        </div>
-        <div className="progress-bar-container" data-testid="job-progress-bar">
-          <div 
-            className={`progress-bar-fill ${isDone ? 'complete' : ''} ${isFailed ? 'failed' : ''}`}
-            style={{ width: `${job.progress}%` }}
-          />
-        </div>
-        <div className="progress-details">
-          <span>{job.processed_chunks}/{job.chunk_count} chunks processed</span>
-          {isDone && <span className="duration">Duration: {formatDuration(job.duration_seconds)}</span>}
-        </div>
-      </div>
-      
-      {/* Card Footer */}
-      <div className="job-card-footer">
-        <span className="job-date">
-          <Clock className="w-3.5 h-3.5" />
-          {formatDate(job.created_at)}
-        </span>
-        <div className="job-actions">
+        
+        {/* Right: Actions */}
+        <div className="job-actions-section">
           {isDone && (
             <button
-              className="btn btn-primary btn-sm"
+              className="btn btn-primary"
               onClick={() => onDownload(job)}
               data-testid="job-download-button"
             >
               <Download className="w-4 h-4" />
-              Download MP3
+              Download
             </button>
           )}
-          {isFailed && (
+          {(isFailed || isStuck) && (
             <button
-              className="btn btn-danger btn-sm"
+              className="btn btn-danger"
               onClick={() => onDelete(job.id)}
               data-testid="job-delete-button"
             >
@@ -130,25 +202,41 @@ const JobCard = ({ job, onDownload, onDelete }) => {
               Remove
             </button>
           )}
-          {isProcessing && (
-            <span className="processing-indicator">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Processing...
-            </span>
+          {isProcessing && !isStuck && (
+            <button
+              className="btn btn-secondary"
+              onClick={() => onCancel(job.id)}
+            >
+              <StopCircle className="w-4 h-4" />
+              Cancel
+            </button>
           )}
+          <span className="job-date">
+            <Clock className="w-3 h-3" />
+            {formatDate(job.created_at)}
+          </span>
         </div>
       </div>
+      
+      {/* Error details if failed */}
+      {isFailed && job.error && (
+        <div className="job-error">
+          <AlertCircle className="w-4 h-4" />
+          <span>{job.error.includes('max_character_limit') ? 'Chunk size exceeded API limit' : 'Processing error'}</span>
+        </div>
+      )}
     </div>
   );
 };
 
-// Create Job Form component
+// Create Job Form
 const CreateJobForm = ({ onSubmit, isLoading }) => {
   const [name, setName] = useState('');
   const [text, setText] = useState('');
   
   const charCount = text.length;
   const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+  const estimatedChunks = Math.ceil(charCount / 4500);
   const canSubmit = name.trim() && text.trim().length >= 100 && !isLoading;
   
   const handleSubmit = (e) => {
@@ -163,19 +251,17 @@ const CreateJobForm = ({ onSubmit, isLoading }) => {
   return (
     <div className="form-card">
       <div className="form-card-header">
-        <div className="form-icon">
-          <Sparkles className="w-5 h-5" />
+        <div className="form-title">
+          <Mic className="w-5 h-5" />
+          <span>New TTS Job</span>
         </div>
-        <div>
-          <h2>Create New TTS Job</h2>
-          <p>Transform your text into natural speech</p>
-        </div>
+        <div className="form-subtitle">Convert text to natural speech</div>
       </div>
+      
       <form onSubmit={handleSubmit} className="form-content">
         <div className="form-group">
-          <label htmlFor="name">Project Name</label>
+          <label>Project Name</label>
           <input
-            id="name"
             type="text"
             className="form-input"
             placeholder="e.g., Chapter 1 Narration"
@@ -185,33 +271,38 @@ const CreateJobForm = ({ onSubmit, isLoading }) => {
             maxLength={200}
           />
         </div>
+        
         <div className="form-group">
-          <label htmlFor="text">Text Content</label>
+          <label>Text Content</label>
           <textarea
-            id="text"
             className="form-textarea"
-            placeholder="Paste your long text here...\n\nThe text will be automatically chunked at sentence boundaries for natural speech flow."
+            placeholder="Paste your text here...&#10;&#10;Text will be chunked at sentence boundaries for natural speech."
             value={text}
             onChange={(e) => setText(e.target.value)}
             data-testid="job-text-textarea"
-            rows={10}
+            rows={8}
           />
+          
           <div className="text-stats">
             <div className="stat-pills">
               <span className="stat-pill">
-                <FileText className="w-3.5 h-3.5" />
-                {charCount.toLocaleString()} chars
+                {charCount.toLocaleString()} characters
               </span>
               <span className="stat-pill">
-                <AudioLines className="w-3.5 h-3.5" />
                 {wordCount.toLocaleString()} words
               </span>
+              {charCount > 100 && (
+                <span className="stat-pill highlight">
+                  ~{estimatedChunks} chunk{estimatedChunks !== 1 ? 's' : ''}
+                </span>
+              )}
             </div>
             {charCount > 0 && charCount < 100 && (
-              <span className="min-warning">Min 100 characters required</span>
+              <span className="warning-text">Min 100 characters</span>
             )}
           </div>
         </div>
+        
         <button
           type="submit"
           className="btn btn-primary btn-lg full-width"
@@ -221,13 +312,13 @@ const CreateJobForm = ({ onSubmit, isLoading }) => {
           {isLoading ? (
             <>
               <Loader2 className="w-5 h-5 animate-spin" />
-              Creating Job...
+              Creating...
             </>
           ) : (
             <>
-              <Mic className="w-5 h-5" />
+              <Sparkles className="w-5 h-5" />
               Generate Speech
-              <ChevronRight className="w-4 h-4" />
+              <ArrowRight className="w-4 h-4" />
             </>
           )}
         </button>
@@ -236,124 +327,18 @@ const CreateJobForm = ({ onSubmit, isLoading }) => {
   );
 };
 
-// Stats Overview Cards
-const StatsOverview = ({ jobs }) => {
-  const completed = jobs.filter(j => j.status === 'completed').length;
-  const processing = jobs.filter(j => ['queued', 'chunking', 'transcribing', 'merging'].includes(j.status)).length;
-  const failed = jobs.filter(j => j.status === 'failed').length;
-  const totalDuration = jobs
-    .filter(j => j.duration_seconds)
-    .reduce((acc, j) => acc + j.duration_seconds, 0);
-  
-  const formatTotalDuration = (seconds) => {
-    if (seconds < 60) return `${Math.floor(seconds)}s`;
-    const mins = Math.floor(seconds / 60);
-    if (mins < 60) return `${mins}m`;
-    const hours = Math.floor(mins / 60);
-    const remainingMins = mins % 60;
-    return `${hours}h ${remainingMins}m`;
-  };
-  
-  return (
-    <div className="stats-grid">
-      <div className="stat-card completed">
-        <div className="stat-icon">
-          <CheckCircle2 className="w-5 h-5" />
-        </div>
-        <div className="stat-content">
-          <span className="stat-value">{completed}</span>
-          <span className="stat-label">Completed</span>
-        </div>
-      </div>
-      <div className="stat-card processing">
-        <div className="stat-icon">
-          <Loader2 className="w-5 h-5" />
-        </div>
-        <div className="stat-content">
-          <span className="stat-value">{processing}</span>
-          <span className="stat-label">Processing</span>
-        </div>
-      </div>
-      <div className="stat-card failed">
-        <div className="stat-icon">
-          <AlertCircle className="w-5 h-5" />
-        </div>
-        <div className="stat-content">
-          <span className="stat-value">{failed}</span>
-          <span className="stat-label">Failed</span>
-        </div>
-      </div>
-      <div className="stat-card duration">
-        <div className="stat-icon">
-          <Clock className="w-5 h-5" />
-        </div>
-        <div className="stat-content">
-          <span className="stat-value">{formatTotalDuration(totalDuration)}</span>
-          <span className="stat-label">Total Audio</span>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Jobs Database Section
-const JobsDatabase = ({ jobs, onDownload, onDelete, isLoading }) => {
-  if (isLoading && jobs.length === 0) {
-    return (
-      <div className="jobs-section">
-        <div className="section-header">
-          <h2><FileText className="w-5 h-5" /> Jobs Database</h2>
-        </div>
-        <div className="jobs-loading">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="skeleton-card" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-  
-  if (jobs.length === 0) {
-    return (
-      <div className="jobs-section">
-        <div className="section-header">
-          <h2><FileText className="w-5 h-5" /> Jobs Database</h2>
-        </div>
-        <div className="empty-state" data-testid="jobs-empty-state">
-          <div className="empty-icon">
-            <Mic className="w-12 h-12" />
-          </div>
-          <h3>No jobs yet</h3>
-          <p>Create your first TTS job to get started</p>
-        </div>
-      </div>
-    );
-  }
-  
-  return (
-    <div className="jobs-section">
-      <div className="section-header">
-        <h2><FileText className="w-5 h-5" /> Jobs Database</h2>
-        <span className="job-count">{jobs.length} job{jobs.length !== 1 ? 's' : ''}</span>
-      </div>
-      <div className="jobs-grid">
-        {jobs.map((job) => (
-          <JobCard 
-            key={job.id} 
-            job={job} 
-            onDownload={onDownload}
-            onDelete={onDelete}
-          />
-        ))}
-      </div>
-    </div>
-  );
-};
-
+// Main App
 function App() {
   const [jobs, setJobs] = useState([]);
   const [isLoadingJobs, setIsLoadingJobs] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+  
+  // Stats calculations
+  const completedJobs = jobs.filter(j => j.status === 'completed');
+  const processingJobs = jobs.filter(j => ['queued', 'chunking', 'transcribing', 'merging'].includes(j.status));
+  const failedJobs = jobs.filter(j => j.status === 'failed');
+  const totalDuration = completedJobs.reduce((acc, j) => acc + (j.duration_seconds || 0), 0);
+  const totalChars = jobs.reduce((acc, j) => acc + (j.text_length || 0), 0);
   
   // Fetch jobs
   const fetchJobs = useCallback(async () => {
@@ -370,15 +355,9 @@ function App() {
     }
   }, []);
   
-  // Initial fetch and polling
   useEffect(() => {
     fetchJobs();
-    
-    // Poll for updates every 2 seconds
-    const interval = setInterval(() => {
-      fetchJobs();
-    }, 2000);
-    
+    const interval = setInterval(fetchJobs, 2000);
     return () => clearInterval(interval);
   }, [fetchJobs]);
   
@@ -388,9 +367,7 @@ function App() {
     try {
       const response = await fetch(`${API_URL}/api/jobs`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(jobData),
       });
       
@@ -402,14 +379,13 @@ function App() {
         toast.error(error.detail || 'Failed to create job');
       }
     } catch (error) {
-      console.error('Error creating job:', error);
-      toast.error('Failed to create job. Please try again.');
+      toast.error('Failed to create job');
     } finally {
       setIsCreating(false);
     }
   };
   
-  // Download job audio
+  // Download
   const handleDownload = async (job) => {
     try {
       const response = await fetch(`${API_URL}/api/jobs/${job.id}/download`);
@@ -425,30 +401,32 @@ function App() {
         document.body.removeChild(a);
         toast.success('Download started!');
       } else {
-        toast.error('Failed to download audio');
+        toast.error('Failed to download');
       }
     } catch (error) {
-      console.error('Error downloading:', error);
-      toast.error('Failed to download audio');
+      toast.error('Failed to download');
     }
   };
   
-  // Delete job
+  // Delete
   const handleDelete = async (jobId) => {
     try {
-      const response = await fetch(`${API_URL}/api/jobs/${jobId}`, {
-        method: 'DELETE',
-      });
-      
+      const response = await fetch(`${API_URL}/api/jobs/${jobId}`, { method: 'DELETE' });
       if (response.ok) {
         toast.success('Job deleted');
         fetchJobs();
       } else {
-        toast.error('Failed to delete job');
+        toast.error('Failed to delete');
       }
     } catch (error) {
-      console.error('Error deleting job:', error);
-      toast.error('Failed to delete job');
+      toast.error('Failed to delete');
+    }
+  };
+  
+  // Cancel (same as delete for now)
+  const handleCancel = async (jobId) => {
+    if (window.confirm('Cancel this job? This cannot be undone.')) {
+      handleDelete(jobId);
     }
   };
   
@@ -456,67 +434,110 @@ function App() {
     <div className="app">
       <Toaster position="top-right" richColors />
       
-      {/* Sidebar */}
-      <aside className="sidebar">
-        <div className="sidebar-header">
+      {/* Header */}
+      <header className="header">
+        <div className="header-left">
           <div className="logo">
             <div className="logo-icon">
-              <Mic className="w-6 h-6" />
+              <Volume2 className="w-6 h-6" />
             </div>
-            <span>TTS Chunker</span>
+            <div className="logo-text">
+              <span className="logo-title">TTS Chunker</span>
+              <span className="logo-subtitle">Powered by ElevenLabs v3</span>
+            </div>
           </div>
         </div>
-        <nav className="sidebar-nav">
-          <a href="#" className="nav-item active">
-            <Sparkles className="w-5 h-5" />
-            <span>Dashboard</span>
-          </a>
-          <a href="#" className="nav-item">
-            <FileText className="w-5 h-5" />
-            <span>All Jobs</span>
-          </a>
-        </nav>
-        <div className="sidebar-footer">
-          <div className="powered-by">
-            <span>Powered by</span>
-            <strong>ElevenLabs v3</strong>
-          </div>
+        <div className="header-right">
+          <button className="btn btn-icon" onClick={fetchJobs} title="Refresh">
+            <RefreshCw className="w-5 h-5" />
+          </button>
         </div>
-      </aside>
+      </header>
       
       {/* Main Content */}
-      <main className="main-content">
-        {/* Header */}
-        <header className="main-header">
-          <div className="header-left">
-            <span className="greeting">Good {new Date().getHours() < 12 ? 'Morning' : new Date().getHours() < 18 ? 'Afternoon' : 'Evening'}</span>
-            <h1>Text to Speech Studio</h1>
-          </div>
-          <div className="header-right">
-            <button className="btn btn-ghost" onClick={fetchJobs} title="Refresh">
-              <RefreshCw className="w-5 h-5" />
-            </button>
-          </div>
-        </header>
+      <main className="main">
+        {/* Stats Row */}
+        <div className="stats-row">
+          <StatsCard 
+            icon={CheckCircle2} 
+            value={completedJobs.length} 
+            label="Completed" 
+            color="success"
+          />
+          <StatsCard 
+            icon={Activity} 
+            value={processingJobs.length} 
+            label="Processing" 
+            color="processing"
+          />
+          <StatsCard 
+            icon={XCircle} 
+            value={failedJobs.length} 
+            label="Failed" 
+            color="danger"
+          />
+          <StatsCard 
+            icon={Timer} 
+            value={formatDuration(totalDuration)} 
+            label="Total Audio" 
+            color="accent"
+          />
+          <StatsCard 
+            icon={FileText} 
+            value={totalChars > 1000000 ? `${(totalChars/1000000).toFixed(1)}M` : totalChars > 1000 ? `${(totalChars/1000).toFixed(0)}K` : totalChars} 
+            label="Characters" 
+            color="default"
+          />
+        </div>
         
-        {/* Stats Overview */}
-        <StatsOverview jobs={jobs} />
-        
-        {/* Main Grid */}
+        {/* Content Grid */}
         <div className="content-grid">
-          {/* Left Column - Form */}
+          {/* Left: Form */}
           <div className="form-column">
             <CreateJobForm onSubmit={handleCreateJob} isLoading={isCreating} />
           </div>
           
-          {/* Right Column - Jobs */}
+          {/* Right: Jobs */}
           <div className="jobs-column">
-            <JobsDatabase 
-              jobs={jobs} 
-              onDownload={handleDownload}
-              onDelete={handleDelete}
-              isLoading={isLoadingJobs}
-            />
+            <div className="jobs-card">
+              <div className="jobs-header">
+                <div className="jobs-title">
+                  <Layers className="w-5 h-5" />
+                  <span>Jobs</span>
+                  <span className="job-count">{jobs.length}</span>
+                </div>
+                <button className="see-details">
+                  See All <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+              
+              <div className="jobs-list">
+                {isLoadingJobs && jobs.length === 0 ? (
+                  <div className="loading-state">
+                    <Loader2 className="w-8 h-8 animate-spin" />
+                    <span>Loading jobs...</span>
+                  </div>
+                ) : jobs.length === 0 ? (
+                  <div className="empty-state" data-testid="jobs-empty-state">
+                    <div className="empty-icon">
+                      <Mic className="w-10 h-10" />
+                    </div>
+                    <h3>No jobs yet</h3>
+                    <p>Create your first TTS job to get started</p>
+                  </div>
+                ) : (
+                  jobs.map((job) => (
+                    <JobCard 
+                      key={job.id} 
+                      job={job} 
+                      onDownload={handleDownload}
+                      onDelete={handleDelete}
+                      onCancel={handleCancel}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </main>
