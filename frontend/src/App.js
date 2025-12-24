@@ -203,7 +203,7 @@ const CreateJobForm = ({ onSubmit, isLoading }) => {
                 {charCount.toLocaleString()} chars
               </span>
               <span className="stat-pill">
-                <Waveform className="w-3.5 h-3.5" />
+                <AudioLines className="w-3.5 h-3.5" />
                 {wordCount.toLocaleString()} words
               </span>
             </div>
