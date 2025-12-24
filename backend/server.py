@@ -81,6 +81,7 @@ class JobResponse(BaseModel):
     id: str
     name: str
     status: str
+    stage: Optional[str] = None
     progress: int
     chunk_count: int
     processed_chunks: int
