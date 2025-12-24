@@ -22,8 +22,20 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
-from pydub import AudioSegment
 from elevenlabs import ElevenLabs
+
+# Configure pydub to use bundled ffmpeg from imageio-ffmpeg
+import imageio_ffmpeg
+ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+os.environ["PATH"] = os.path.dirname(ffmpeg_path) + os.pathsep + os.environ.get("PATH", "")
+
+# Now import pydub after setting PATH
+from pydub import AudioSegment
+# Also explicitly set the converter paths for pydub
+AudioSegment.converter = ffmpeg_path
+AudioSegment.ffprobe = ffmpeg_path.replace("ffmpeg", "ffprobe") if os.path.exists(ffmpeg_path.replace("ffmpeg", "ffprobe")) else ffmpeg_path
+
+print(f"Using ffmpeg from: {ffmpeg_path}")
 
 # Environment variables
 MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
