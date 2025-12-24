@@ -24,18 +24,22 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 from elevenlabs import ElevenLabs
 
-# Configure pydub to use bundled ffmpeg from imageio-ffmpeg
-import imageio_ffmpeg
-ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
-os.environ["PATH"] = os.path.dirname(ffmpeg_path) + os.pathsep + os.environ.get("PATH", "")
+# Configure pydub to use bundled ffmpeg from static-ffmpeg (includes both ffmpeg and ffprobe)
+import static_ffmpeg
+static_ffmpeg.add_paths()  # Adds ffmpeg and ffprobe to system PATH
 
 # Now import pydub after setting PATH
 from pydub import AudioSegment
-# Also explicitly set the converter paths for pydub
-AudioSegment.converter = ffmpeg_path
-AudioSegment.ffprobe = ffmpeg_path.replace("ffmpeg", "ffprobe") if os.path.exists(ffmpeg_path.replace("ffmpeg", "ffprobe")) else ffmpeg_path
 
+# Verify ffmpeg is available
+import shutil
+ffmpeg_path = shutil.which("ffmpeg")
+ffprobe_path = shutil.which("ffprobe")
 print(f"Using ffmpeg from: {ffmpeg_path}")
+print(f"Using ffprobe from: {ffprobe_path}")
+
+if not ffmpeg_path or not ffprobe_path:
+    raise RuntimeError("ffmpeg or ffprobe not found! static-ffmpeg installation may have failed.")
 
 # Environment variables
 MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
