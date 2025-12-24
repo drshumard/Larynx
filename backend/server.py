@@ -242,10 +242,10 @@ async def process_tts_job(job_id: str):
             print(f"Job {job_id} not found")
             return
         
-        # Update status to processing
+        # Update status to chunking
         await db.jobs.update_one(
             {"_id": ObjectId(job_id)},
-            {"$set": {"status": "processing", "updated_at": datetime.utcnow()}}
+            {"$set": {"status": "chunking", "stage": "Analyzing text...", "updated_at": datetime.utcnow()}}
         )
         
         # Initialize ElevenLabs client
@@ -256,24 +256,31 @@ async def process_tts_job(job_id: str):
         chunk_count = len(chunks)
         audio_chunks = []
         
+        # Update status to transcribing
+        await db.jobs.update_one(
+            {"_id": ObjectId(job_id)},
+            {"$set": {"status": "transcribing", "stage": f"Converting to speech (0/{chunk_count})...", "updated_at": datetime.utcnow()}}
+        )
+        
         # Process each chunk
         for i, chunk_text in enumerate(chunks):
             print(f"Processing chunk {i + 1}/{chunk_count} for job {job_id}")
             
             try:
                 audio_data = await asyncio.to_thread(
-                    lambda: tts_chunk_to_audio_sync(eleven_client, chunk_text)
+                    lambda ct=chunk_text: tts_chunk_to_audio_sync(eleven_client, ct)
                 )
                 audio_chunks.append(audio_data)
                 
                 # Update progress
-                progress = int(((i + 1) / chunk_count) * 90)  # 90% for TTS, 10% for merge
+                progress = int(((i + 1) / chunk_count) * 85)  # 85% for TTS, 15% for merge
                 await db.jobs.update_one(
                     {"_id": ObjectId(job_id)},
                     {
                         "$set": {
                             "processed_chunks": i + 1,
                             "progress": progress,
+                            "stage": f"Converting to speech ({i + 1}/{chunk_count})...",
                             "updated_at": datetime.utcnow()
                         }
                     }
