@@ -17,7 +17,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Volume2,
-  Waveform,
+  AudioLines,
   Sparkles
 } from 'lucide-react';
 
