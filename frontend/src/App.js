@@ -223,6 +223,17 @@ const JobCard = ({ job, onDownload, onDelete }) => {
         <div className="job-stage">
           {isProcessing ? (job.stage || 'Processing...') : (isDone ? 'Complete' : 'Error')}
         </div>
+        
+        {/* Error details if failed */}
+        {isFailed && job.error && (
+          <div className="job-error">
+            <AlertCircle className="w-4 h-4" />
+            <div className="error-content">
+              <span className="error-title">Error Details:</span>
+              <span className="error-message">{job.error}</span>
+            </div>
+          </div>
+        )}
       </div>
       
       {/* Actions Section */}
