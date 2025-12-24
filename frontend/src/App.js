@@ -24,26 +24,24 @@ import {
   Timer,
   Layers,
   ArrowRight,
-  Info,
-  MoreHorizontal,
-  StopCircle
+  Play,
+  Zap,
+  BarChart3,
+  AudioWaveform
 } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 
-// Format duration helper
+// Helpers
 const formatDuration = (seconds) => {
   if (!seconds) return '--:--';
   const hrs = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
-  if (hrs > 0) {
-    return `${hrs}h ${mins}m`;
-  }
+  if (hrs > 0) return `${hrs}h ${mins}m`;
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
-// Format date helper
 const formatDate = (dateString) => {
   const date = new Date(dateString);
   return date.toLocaleString('en-US', {
@@ -54,27 +52,82 @@ const formatDate = (dateString) => {
   });
 };
 
-// Stats Card Component
-const StatsCard = ({ icon: Icon, value, label, trend, color = 'default' }) => (
-  <div className={`stats-card ${color}`}>
-    <div className="stats-card-header">
-      <div className="stats-icon">
-        <Icon className="w-5 h-5" />
-      </div>
-      {trend && (
-        <span className={`trend ${trend > 0 ? 'positive' : 'negative'}`}>
-          <TrendingUp className="w-3 h-3" />
-          {Math.abs(trend)}%
-        </span>
-      )}
+const getJobRunTime = (job) => {
+  if (job.status !== 'completed') return null;
+  const start = new Date(job.created_at);
+  const end = new Date(job.updated_at);
+  const diffMs = end - start;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffSecs = Math.floor((diffMs % 60000) / 1000);
+  if (diffMins > 0) return `${diffMins}m ${diffSecs}s`;
+  return `${diffSecs}s`;
+};
+
+// Metric Card Component
+const MetricCard = ({ icon: Icon, value, label, subtext, color = 'default', large = false }) => (
+  <div className={`metric-card ${color} ${large ? 'large' : ''}`}>
+    <div className="metric-icon">
+      <Icon className="w-6 h-6" />
     </div>
-    <div className="stats-value">{value}</div>
-    <div className="stats-label">{label}</div>
+    <div className="metric-content">
+      <div className="metric-value">{value}</div>
+      <div className="metric-label">{label}</div>
+      {subtext && <div className="metric-subtext">{subtext}</div>}
+    </div>
   </div>
 );
 
-// Progress Ring Component
-const ProgressRing = ({ progress, size = 60, strokeWidth = 6 }) => {
+// Analytics Card Component
+const AnalyticsCard = ({ jobs }) => {
+  const completed = jobs.filter(j => j.status === 'completed');
+  const totalChars = completed.reduce((acc, j) => acc + (j.text_length || 0), 0);
+  const totalDuration = completed.reduce((acc, j) => acc + (j.duration_seconds || 0), 0);
+  const avgChunks = completed.length > 0 
+    ? Math.round(completed.reduce((acc, j) => acc + j.chunk_count, 0) / completed.length) 
+    : 0;
+  
+  return (
+    <div className="analytics-card">
+      <div className="analytics-header">
+        <BarChart3 className="w-5 h-5" />
+        <span>Analytics Overview</span>
+      </div>
+      <div className="analytics-grid">
+        <div className="analytics-item">
+          <div className="analytics-value">{completed.length}</div>
+          <div className="analytics-label">Jobs Completed</div>
+          <div className="analytics-bar">
+            <div className="analytics-bar-fill" style={{ width: '100%' }} />
+          </div>
+        </div>
+        <div className="analytics-item">
+          <div className="analytics-value">{formatDuration(totalDuration)}</div>
+          <div className="analytics-label">Total Audio</div>
+          <div className="analytics-bar">
+            <div className="analytics-bar-fill orange" style={{ width: '75%' }} />
+          </div>
+        </div>
+        <div className="analytics-item">
+          <div className="analytics-value">{totalChars > 1000 ? `${(totalChars/1000).toFixed(0)}K` : totalChars}</div>
+          <div className="analytics-label">Characters</div>
+          <div className="analytics-bar">
+            <div className="analytics-bar-fill pink" style={{ width: '60%' }} />
+          </div>
+        </div>
+        <div className="analytics-item">
+          <div className="analytics-value">{avgChunks}</div>
+          <div className="analytics-label">Avg Chunks</div>
+          <div className="analytics-bar">
+            <div className="analytics-bar-fill purple" style={{ width: '45%' }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Progress Ring
+const ProgressRing = ({ progress, size = 72, strokeWidth = 6 }) => {
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
   const offset = circumference - (progress / 100) * circumference;
@@ -113,123 +166,88 @@ const ProgressRing = ({ progress, size = 60, strokeWidth = 6 }) => {
   );
 };
 
-// Job Card Component
-const JobCard = ({ job, onDownload, onDelete, onCancel }) => {
+// Job Card
+const JobCard = ({ job, onDownload, onDelete }) => {
   const isDone = job.status === 'completed';
   const isFailed = job.status === 'failed';
   const isProcessing = ['queued', 'chunking', 'transcribing', 'merging'].includes(job.status);
-  const isStuck = isProcessing && (new Date() - new Date(job.updated_at)) > 120000; // 2 min no update = stuck
+  const isStuck = isProcessing && (new Date() - new Date(job.updated_at)) > 120000;
   
   const getStatusInfo = () => {
-    if (isDone) return { label: 'Completed', color: 'success' };
-    if (isFailed) return { label: 'Failed', color: 'danger' };
-    if (isStuck) return { label: 'Stuck', color: 'warning' };
-    return { label: job.status, color: 'processing' };
+    if (isDone) return { label: 'Completed', color: 'success', icon: CheckCircle2 };
+    if (isFailed) return { label: 'Failed', color: 'danger', icon: XCircle };
+    if (isStuck) return { label: 'Stuck', color: 'warning', icon: AlertCircle };
+    return { label: job.status, color: 'processing', icon: Activity };
   };
   
   const status = getStatusInfo();
+  const StatusIcon = status.icon;
+  const runTime = getJobRunTime(job);
 
   return (
     <div className={`job-card ${status.color}`} data-testid={`jobs-table-row-${job.id}`}>
-      <div className="job-card-main">
-        {/* Left: Progress Ring */}
-        <div className="job-progress-section">
-          <ProgressRing progress={job.progress} />
-        </div>
-        
-        {/* Middle: Job Info */}
-        <div className="job-info-section">
-          <div className="job-header">
-            <h3 className="job-name" data-testid="job-name-cell">{job.name}</h3>
-            <span className={`status-badge ${status.color}`} data-testid="job-status-badge">
-              {isDone && <CheckCircle2 className="w-3 h-3" />}
-              {isFailed && <AlertCircle className="w-3 h-3" />}
-              {isProcessing && !isStuck && <Loader2 className="w-3 h-3 animate-spin" />}
-              {isStuck && <AlertCircle className="w-3 h-3" />}
-              {status.label}
-            </span>
-          </div>
-          
-          <div className="job-meta-row">
-            <span className="meta-item">
-              <FileText className="w-3.5 h-3.5" />
-              {job.text_length?.toLocaleString()} chars
-            </span>
-            <span className="meta-item">
-              <Layers className="w-3.5 h-3.5" />
-              {job.processed_chunks}/{job.chunk_count} chunks
-            </span>
-            {isDone && job.duration_seconds && (
-              <span className="meta-item">
-                <Timer className="w-3.5 h-3.5" />
-                {formatDuration(job.duration_seconds)}
-              </span>
+      {/* Progress Section */}
+      <div className="job-progress">
+        <ProgressRing progress={job.progress} />
+      </div>
+      
+      {/* Info Section */}
+      <div className="job-info">
+        <div className="job-header">
+          <h3 className="job-name" data-testid="job-name-cell">{job.name}</h3>
+          <span className={`status-badge ${status.color}`} data-testid="job-status-badge">
+            {isProcessing && !isStuck ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <StatusIcon className="w-3.5 h-3.5" />
             )}
-          </div>
-          
-          {/* Progress Bar */}
-          <div className="job-progress-bar" data-testid="job-progress-bar">
-            <div 
-              className={`progress-fill ${status.color}`}
-              style={{ width: `${job.progress}%` }}
-            />
-          </div>
-          
-          <div className="job-stage">
-            {isProcessing ? (job.stage || 'Processing...') : (isDone ? 'Complete' : job.error ? 'Error occurred' : 'Failed')}
-          </div>
+            {status.label}
+          </span>
         </div>
         
-        {/* Right: Actions */}
-        <div className="job-actions-section">
-          {isDone && (
-            <button
-              className="btn btn-primary"
-              onClick={() => onDownload(job)}
-              data-testid="job-download-button"
-            >
-              <Download className="w-4 h-4" />
-              Download
-            </button>
+        <div className="job-meta">
+          <span><FileText className="w-4 h-4" /> {job.text_length?.toLocaleString()} chars</span>
+          <span><Layers className="w-4 h-4" /> {job.processed_chunks}/{job.chunk_count} chunks</span>
+          {isDone && job.duration_seconds && (
+            <span><AudioWaveform className="w-4 h-4" /> {formatDuration(job.duration_seconds)} audio</span>
           )}
-          {(isFailed || isStuck) && (
-            <button
-              className="btn btn-danger"
-              onClick={() => onDelete(job.id)}
-              data-testid="job-delete-button"
-            >
-              <Trash2 className="w-4 h-4" />
-              Remove
-            </button>
+          {runTime && (
+            <span className="run-time"><Zap className="w-4 h-4" /> {runTime} to process</span>
           )}
-          {isProcessing && !isStuck && (
-            <button
-              className="btn btn-secondary"
-              onClick={() => onCancel(job.id)}
-            >
-              <StopCircle className="w-4 h-4" />
-              Cancel
-            </button>
-          )}
-          <span className="job-date">
-            <Clock className="w-3 h-3" />
-            {formatDate(job.created_at)}
-          </span>
+        </div>
+        
+        <div className="job-progress-bar" data-testid="job-progress-bar">
+          <div className={`progress-fill ${status.color}`} style={{ width: `${job.progress}%` }} />
+        </div>
+        
+        <div className="job-stage">
+          {isProcessing ? (job.stage || 'Processing...') : (isDone ? 'Complete' : 'Error')}
         </div>
       </div>
       
-      {/* Error details if failed */}
-      {isFailed && job.error && (
-        <div className="job-error">
-          <AlertCircle className="w-4 h-4" />
-          <span>{job.error.includes('max_character_limit') ? 'Chunk size exceeded API limit' : 'Processing error'}</span>
+      {/* Actions Section */}
+      <div className="job-actions">
+        {isDone && (
+          <button className="btn btn-primary" onClick={() => onDownload(job)} data-testid="job-download-button">
+            <Download className="w-4 h-4" />
+            Download
+          </button>
+        )}
+        {(isFailed || isStuck || isProcessing) && (
+          <button className="btn btn-ghost-danger" onClick={() => onDelete(job.id)} data-testid="job-delete-button">
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
+        <div className="job-timestamp">
+          <Clock className="w-3.5 h-3.5" />
+          {formatDate(job.created_at)}
         </div>
-      )}
+      </div>
     </div>
   );
 };
 
-// Create Job Form
+// Create Form
 const CreateJobForm = ({ onSubmit, isLoading }) => {
   const [name, setName] = useState('');
   const [text, setText] = useState('');
@@ -249,21 +267,22 @@ const CreateJobForm = ({ onSubmit, isLoading }) => {
   };
   
   return (
-    <div className="form-card">
-      <div className="form-card-header">
-        <div className="form-title">
-          <Mic className="w-5 h-5" />
-          <span>New TTS Job</span>
+    <div className="create-card">
+      <div className="create-header">
+        <div className="create-icon">
+          <Mic className="w-7 h-7" />
         </div>
-        <div className="form-subtitle">Convert text to natural speech</div>
+        <div>
+          <h2>Create New Job</h2>
+          <p>Convert text to natural speech</p>
+        </div>
       </div>
       
-      <form onSubmit={handleSubmit} className="form-content">
+      <form onSubmit={handleSubmit} className="create-form">
         <div className="form-group">
           <label>Project Name</label>
           <input
             type="text"
-            className="form-input"
             placeholder="e.g., Chapter 1 Narration"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -275,51 +294,30 @@ const CreateJobForm = ({ onSubmit, isLoading }) => {
         <div className="form-group">
           <label>Text Content</label>
           <textarea
-            className="form-textarea"
-            placeholder="Paste your text here...&#10;&#10;Text will be chunked at sentence boundaries for natural speech."
+            placeholder="Paste your text here...&#10;&#10;Text will be chunked at sentence boundaries."
             value={text}
             onChange={(e) => setText(e.target.value)}
             data-testid="job-text-textarea"
-            rows={8}
+            rows={6}
           />
           
-          <div className="text-stats">
-            <div className="stat-pills">
-              <span className="stat-pill">
-                {charCount.toLocaleString()} characters
-              </span>
-              <span className="stat-pill">
-                {wordCount.toLocaleString()} words
-              </span>
-              {charCount > 100 && (
-                <span className="stat-pill highlight">
-                  ~{estimatedChunks} chunk{estimatedChunks !== 1 ? 's' : ''}
-                </span>
-              )}
+          <div className="text-info">
+            <div className="info-pills">
+              <span>{charCount.toLocaleString()} chars</span>
+              <span>{wordCount.toLocaleString()} words</span>
+              {charCount > 100 && <span className="highlight">~{estimatedChunks} chunks</span>}
             </div>
             {charCount > 0 && charCount < 100 && (
-              <span className="warning-text">Min 100 characters</span>
+              <span className="warning">Min 100 characters</span>
             )}
           </div>
         </div>
         
-        <button
-          type="submit"
-          className="btn btn-primary btn-lg full-width"
-          disabled={!canSubmit}
-          data-testid="create-job-submit-button"
-        >
+        <button type="submit" className="btn btn-primary btn-large" disabled={!canSubmit} data-testid="create-job-submit-button">
           {isLoading ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Creating...
-            </>
+            <><Loader2 className="w-5 h-5 animate-spin" /> Creating...</>
           ) : (
-            <>
-              <Sparkles className="w-5 h-5" />
-              Generate Speech
-              <ArrowRight className="w-4 h-4" />
-            </>
+            <><Play className="w-5 h-5" /> Generate Speech<ArrowRight className="w-4 h-4" /></>
           )}
         </button>
       </form>
@@ -333,14 +331,11 @@ function App() {
   const [isLoadingJobs, setIsLoadingJobs] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   
-  // Stats calculations
   const completedJobs = jobs.filter(j => j.status === 'completed');
   const processingJobs = jobs.filter(j => ['queued', 'chunking', 'transcribing', 'merging'].includes(j.status));
   const failedJobs = jobs.filter(j => j.status === 'failed');
   const totalDuration = completedJobs.reduce((acc, j) => acc + (j.duration_seconds || 0), 0);
-  const totalChars = jobs.reduce((acc, j) => acc + (j.text_length || 0), 0);
   
-  // Fetch jobs
   const fetchJobs = useCallback(async () => {
     try {
       const response = await fetch(`${API_URL}/api/jobs`);
@@ -361,7 +356,6 @@ function App() {
     return () => clearInterval(interval);
   }, [fetchJobs]);
   
-  // Create job
   const handleCreateJob = async (jobData) => {
     setIsCreating(true);
     try {
@@ -370,7 +364,6 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(jobData),
       });
-      
       if (response.ok) {
         toast.success('Job created! Processing will begin shortly.');
         fetchJobs();
@@ -385,7 +378,6 @@ function App() {
     }
   };
   
-  // Download
   const handleDownload = async (job) => {
     try {
       const response = await fetch(`${API_URL}/api/jobs/${job.id}/download`);
@@ -400,33 +392,21 @@ function App() {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
         toast.success('Download started!');
-      } else {
-        toast.error('Failed to download');
       }
     } catch (error) {
       toast.error('Failed to download');
     }
   };
   
-  // Delete
   const handleDelete = async (jobId) => {
     try {
       const response = await fetch(`${API_URL}/api/jobs/${jobId}`, { method: 'DELETE' });
       if (response.ok) {
-        toast.success('Job deleted');
+        toast.success('Job removed');
         fetchJobs();
-      } else {
-        toast.error('Failed to delete');
       }
     } catch (error) {
-      toast.error('Failed to delete');
-    }
-  };
-  
-  // Cancel (same as delete for now)
-  const handleCancel = async (jobId) => {
-    if (window.confirm('Cancel this job? This cannot be undone.')) {
-      handleDelete(jobId);
+      toast.error('Failed to remove');
     }
   };
   
@@ -436,104 +416,87 @@ function App() {
       
       {/* Header */}
       <header className="header">
-        <div className="header-left">
-          <div className="logo">
-            <div className="logo-icon">
-              <Volume2 className="w-6 h-6" />
-            </div>
-            <div className="logo-text">
-              <span className="logo-title">TTS Chunker</span>
-              <span className="logo-subtitle">Powered by ElevenLabs v3</span>
-            </div>
+        <div className="brand">
+          <div className="brand-icon">
+            <Volume2 className="w-7 h-7" />
+          </div>
+          <div className="brand-text">
+            <span className="brand-name">TTS Chunker</span>
+            <span className="brand-sub">ElevenLabs v3</span>
           </div>
         </div>
-        <div className="header-right">
-          <button className="btn btn-icon" onClick={fetchJobs} title="Refresh">
-            <RefreshCw className="w-5 h-5" />
-          </button>
-        </div>
+        <button className="refresh-btn" onClick={fetchJobs}>
+          <RefreshCw className="w-5 h-5" />
+        </button>
       </header>
       
-      {/* Main Content */}
+      {/* Main */}
       <main className="main">
-        {/* Stats Row */}
-        <div className="stats-row">
-          <StatsCard 
+        {/* Top Row - Metrics */}
+        <div className="metrics-row">
+          <MetricCard 
             icon={CheckCircle2} 
             value={completedJobs.length} 
             label="Completed" 
             color="success"
+            large
           />
-          <StatsCard 
+          <MetricCard 
             icon={Activity} 
             value={processingJobs.length} 
             label="Processing" 
             color="processing"
           />
-          <StatsCard 
+          <MetricCard 
             icon={XCircle} 
             value={failedJobs.length} 
             label="Failed" 
             color="danger"
           />
-          <StatsCard 
+          <MetricCard 
             icon={Timer} 
             value={formatDuration(totalDuration)} 
             label="Total Audio" 
             color="accent"
-          />
-          <StatsCard 
-            icon={FileText} 
-            value={totalChars > 1000000 ? `${(totalChars/1000000).toFixed(1)}M` : totalChars > 1000 ? `${(totalChars/1000).toFixed(0)}K` : totalChars} 
-            label="Characters" 
-            color="default"
+            large
           />
         </div>
         
-        {/* Content Grid */}
-        <div className="content-grid">
-          {/* Left: Form */}
-          <div className="form-column">
+        {/* Content Row */}
+        <div className="content-row">
+          {/* Left Column */}
+          <div className="left-column">
             <CreateJobForm onSubmit={handleCreateJob} isLoading={isCreating} />
+            <AnalyticsCard jobs={jobs} />
           </div>
           
-          {/* Right: Jobs */}
-          <div className="jobs-column">
+          {/* Right Column - Jobs */}
+          <div className="right-column">
             <div className="jobs-card">
               <div className="jobs-header">
                 <div className="jobs-title">
                   <Layers className="w-5 h-5" />
                   <span>Jobs</span>
-                  <span className="job-count">{jobs.length}</span>
+                  <span className="jobs-count">{jobs.length}</span>
                 </div>
-                <button className="see-details">
-                  See All <ArrowRight className="w-4 h-4" />
-                </button>
+                <span className="see-all">See all <ChevronRight className="w-4 h-4" /></span>
               </div>
               
               <div className="jobs-list">
                 {isLoadingJobs && jobs.length === 0 ? (
                   <div className="loading-state">
-                    <Loader2 className="w-8 h-8 animate-spin" />
+                    <Loader2 className="w-10 h-10 animate-spin" />
                     <span>Loading jobs...</span>
                   </div>
                 ) : jobs.length === 0 ? (
                   <div className="empty-state" data-testid="jobs-empty-state">
-                    <div className="empty-icon">
-                      <Mic className="w-10 h-10" />
-                    </div>
+                    <div className="empty-icon"><Mic className="w-12 h-12" /></div>
                     <h3>No jobs yet</h3>
-                    <p>Create your first TTS job to get started</p>
+                    <p>Create your first TTS job</p>
                   </div>
                 ) : (
                   jobs.map((job) => (
-                    <JobCard 
-                      key={job.id} 
-                      job={job} 
-                      onDownload={handleDownload}
-                      onDelete={handleDelete}
-                      onCancel={handleCancel}
-                    />
+                    <JobCard key={job.id} job={job} onDownload={handleDownload} onDelete={handleDelete} />
                   ))
                 )}
               </div>
