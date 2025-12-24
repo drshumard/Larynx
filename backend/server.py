@@ -363,7 +363,12 @@ def tts_chunk_to_audio_sync(client: ElevenLabs, text: str) -> bytes:
         text=text,
         voice_id=ELEVENLABS_VOICE_ID,
         model_id=ELEVENLABS_MODEL,
-        output_format="mp3_44100_128"
+        output_format="mp3_44100_128",
+        voice_settings={
+            "stability": 0.5,
+            "similarity_boost": 0.75,
+            "speed": 1.1
+        }
     )
     
     audio_data = b""
