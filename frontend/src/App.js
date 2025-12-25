@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import '@fontsource/inter/400.css';
 import '@fontsource/inter/500.css';
 import '@fontsource/inter/600.css';
@@ -20,10 +20,8 @@ import {
   Activity,
   Layers,
   Play,
-  Zap,
+  Pause,
   BarChart3,
-  ChevronDown,
-  ChevronUp,
   Info,
   Terminal,
   Copy,
@@ -63,6 +61,125 @@ const getJobRunTime = (job) => {
   return `${diffSecs}s`;
 };
 
+// Audio Player Component
+const AudioPlayer = ({ jobId, jobName }) => {
+  const audioRef = useRef(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const audioUrl = `${API_URL}/api/jobs/${jobId}/download`;
+  
+  const togglePlay = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play();
+      }
+    }
+  };
+  
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+    }
+  };
+  
+  const handleLoadedMetadata = () => {
+    if (audioRef.current) {
+      setDuration(audioRef.current.duration);
+      setIsLoading(false);
+    }
+  };
+  
+  const handleSeek = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const percent = (e.clientX - rect.left) / rect.width;
+    if (audioRef.current) {
+      audioRef.current.currentTime = percent * duration;
+    }
+  };
+  
+  const formatTime = (time) => {
+    const mins = Math.floor(time / 60);
+    const secs = Math.floor(time % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+  
+  return (
+    <div className="audio-player">
+      <audio
+        ref={audioRef}
+        src={audioUrl}
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => setIsPlaying(false)}
+      />
+      
+      <button className="play-btn large" onClick={togglePlay} disabled={isLoading}>
+        {isLoading ? (
+          <Loader2 className="w-6 h-6 animate-spin" />
+        ) : isPlaying ? (
+          <Pause className="w-6 h-6" />
+        ) : (
+          <Play className="w-6 h-6" />
+        )}
+      </button>
+      
+      <div className="player-info">
+        <div className="player-track" onClick={handleSeek}>
+          <div 
+            className="player-progress" 
+            style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
+          />
+        </div>
+        <div className="player-times">
+          <span>{formatTime(currentTime)}</span>
+          <span>{formatTime(duration)}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Mini Play Button for table
+const MiniPlayButton = ({ jobId, onPlay }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef(null);
+  
+  const togglePlay = (e) => {
+    e.stopPropagation();
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        // Stop all other audio first
+        document.querySelectorAll('audio').forEach(a => a.pause());
+        audioRef.current.play();
+      }
+    }
+  };
+  
+  return (
+    <>
+      <audio
+        ref={audioRef}
+        src={`${API_URL}/api/jobs/${jobId}/download`}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => setIsPlaying(false)}
+      />
+      <button className="action-btn play" onClick={togglePlay}>
+        {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+      </button>
+    </>
+  );
+};
+
 // Job Detail Modal
 const JobDetailModal = ({ job, onClose, onDownload, onDelete }) => {
   const [copied, setCopied] = useState(false);
@@ -96,6 +213,14 @@ const JobDetailModal = ({ job, onClose, onDownload, onDelete }) => {
         </div>
         
         <div className="modal-body">
+          {/* Audio Player for completed jobs */}
+          {isDone && (
+            <div className="detail-section">
+              <h3><Volume2 className="w-4 h-4" /> Audio Player</h3>
+              <AudioPlayer jobId={job.id} jobName={job.name} />
+            </div>
+          )}
+          
           {/* Status Section */}
           <div className="detail-section">
             <h3><Info className="w-4 h-4" /> Status</h3>
@@ -186,7 +311,7 @@ const JobDetailModal = ({ job, onClose, onDownload, onDelete }) => {
               {isDone && (
                 <div className="log-entry success">
                   <span className="log-time">{formatDate(job.updated_at)}</span>
-                  <span className="log-msg">Job completed successfully - {formatDuration(job.duration_seconds)} audio generated</span>
+                  <span className="log-msg">Job completed - {formatDuration(job.duration_seconds)} audio generated</span>
                 </div>
               )}
               {isFailed && (
@@ -243,32 +368,30 @@ const JobRow = ({ job, onDownload, onDelete, onClick }) => {
       
       <div className="job-cell">
         <span className="cell-value">{job.text_length?.toLocaleString()}</span>
-        <span className="cell-label">chars</span>
       </div>
       
       <div className="job-cell">
         <span className="cell-value">{job.chunk_count}</span>
-        <span className="cell-label">chunks</span>
       </div>
       
       <div className="job-cell">
         <span className="cell-value">{isDone && job.duration_seconds ? formatDuration(job.duration_seconds) : '-'}</span>
-        <span className="cell-label">audio</span>
       </div>
       
       <div className="job-cell">
         <span className="cell-value">{runTime || '-'}</span>
-        <span className="cell-label">process time</span>
       </div>
       
-      <div className="job-cell progress-cell">
-        <div className="progress-mini">
-          <div className={`progress-mini-bar ${statusColor}`} style={{ width: `${job.progress}%` }} />
+      <div className="job-cell">
+        <div className="progress-wrapper">
+          <div className="progress-mini">
+            <div className={`progress-mini-bar ${statusColor}`} style={{ width: `${job.progress}%` }} />
+          </div>
+          <span className="progress-pct">{job.progress}%</span>
         </div>
-        <span className="progress-text">{job.progress}%</span>
       </div>
       
-      <div className="job-cell status-cell">
+      <div className="job-cell">
         <span className={`status-badge ${statusColor}`}>
           {isDone && <CheckCircle2 className="w-3 h-3" />}
           {isFailed && <XCircle className="w-3 h-3" />}
@@ -280,11 +403,14 @@ const JobRow = ({ job, onDownload, onDelete, onClick }) => {
       
       <div className="job-cell actions-cell" onClick={e => e.stopPropagation()}>
         {isDone && (
-          <button className="action-btn primary" onClick={() => onDownload(job)} data-testid="job-download-button">
-            <Download className="w-4 h-4" />
-          </button>
+          <>
+            <MiniPlayButton jobId={job.id} />
+            <button className="action-btn download" onClick={() => onDownload(job)} data-testid="job-download-button">
+              <Download className="w-4 h-4" />
+            </button>
+          </>
         )}
-        <button className="action-btn ghost" onClick={() => onDelete(job.id)} data-testid="job-delete-button">
+        <button className="action-btn delete" onClick={() => onDelete(job.id)} data-testid="job-delete-button">
           <Trash2 className="w-4 h-4" />
         </button>
       </div>
@@ -405,7 +531,7 @@ function App() {
       )}
       
       <div className="dashboard">
-        {/* Header - Centered */}
+        {/* Header */}
         <header className="header">
           <div className="brand-centered">
             <div className="brand-icon">
@@ -421,7 +547,7 @@ function App() {
           </button>
         </header>
         
-        {/* Stats Row */}
+        {/* Stats Bar */}
         <div className="stats-bar">
           <div className="stat-item">
             <div className="stat-icon success"><CheckCircle2 className="w-5 h-5" /></div>
@@ -454,7 +580,7 @@ function App() {
             </div>
             <form onSubmit={handleSubmit} className="create-form">
               <div className="form-row">
-                <div className="form-field">
+                <div className="form-field name-field">
                   <label>Project Name</label>
                   <input
                     type="text"
@@ -464,11 +590,11 @@ function App() {
                     data-testid="job-name-input"
                   />
                 </div>
-                <div className="form-field flex-grow">
+                <div className="form-field text-field">
                   <label>Text Content</label>
                   <input
                     type="text"
-                    placeholder="Paste your text here or use the expanded view below..."
+                    placeholder="Paste your text here..."
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     data-testid="job-text-textarea"
@@ -499,14 +625,14 @@ function App() {
           
           {/* Table Header */}
           <div className="table-header">
-            <div className="th">Name</div>
-            <div className="th">Size</div>
-            <div className="th">Chunks</div>
-            <div className="th">Audio</div>
-            <div className="th">Time</div>
-            <div className="th">Progress</div>
-            <div className="th">Status</div>
-            <div className="th">Actions</div>
+            <div className="th th-name">Name</div>
+            <div className="th th-size">Size</div>
+            <div className="th th-chunks">Chunks</div>
+            <div className="th th-audio">Audio</div>
+            <div className="th th-time">Time</div>
+            <div className="th th-progress">Progress</div>
+            <div className="th th-status">Status</div>
+            <div className="th th-actions">Actions</div>
           </div>
           
           <div className="jobs-list">
