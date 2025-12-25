@@ -456,7 +456,7 @@ def tts_chunk_to_audio_sync(client: ElevenLabs, text: str) -> bytes:
         voice_settings={
             "stability": 0.5,
             "similarity_boost": 1,
-            "speed": 1.7
+            "speed": 2
         }
     )
     
