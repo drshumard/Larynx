@@ -63,7 +63,7 @@ const getJobRunTime = (job) => {
   return `${diffSecs}s`;
 };
 
-// Audio Player Component with proper scrubbing
+// Audio Player Component with scrubbing
 const AudioPlayer = ({ jobId }) => {
   const audioRef = useRef(null);
   const trackRef = useRef(null);
@@ -157,11 +157,11 @@ const AudioPlayer = ({ jobId }) => {
 
       <button className="play-btn-large" onClick={togglePlay} disabled={isLoading}>
         {isLoading ? (
-          <Loader2 className="w-5 h-5 animate-spin" />
+          <Loader2 className="animate-spin" />
         ) : isPlaying ? (
-          <Pause className="w-5 h-5" />
+          <Pause />
         ) : (
-          <Play className="w-5 h-5" style={{ marginLeft: '2px' }} />
+          <Play style={{ marginLeft: '2px' }} />
         )}
       </button>
 
@@ -187,7 +187,7 @@ const AudioPlayer = ({ jobId }) => {
   );
 };
 
-// Mini Play Button for table
+// Mini Play Button
 const MiniPlayButton = ({ jobId }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef(null);
@@ -214,7 +214,7 @@ const MiniPlayButton = ({ jobId }) => {
         onEnded={() => setIsPlaying(false)}
       />
       <button className="action-btn play" onClick={togglePlay}>
-        {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" style={{ marginLeft: '1px' }} />}
+        {isPlaying ? <Pause /> : <Play style={{ marginLeft: '1px' }} />}
       </button>
     </>
   );
@@ -246,69 +246,81 @@ const JobDetailModal = ({ job, onClose, onDownload, onDelete }) => {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>{job.name}</h2>
+          <h2 className="modal-title">{job.name}</h2>
           <button className="modal-close" onClick={onClose}>
-            <X className="w-4 h-4" />
+            <X />
           </button>
         </div>
 
         <div className="modal-body">
           {isDone && (
             <div className="detail-section">
-              <h3><Volume2 className="w-4 h-4" /> Audio Player</h3>
+              <div className="detail-section-header">
+                <Volume2 />
+                <span className="detail-section-title">Audio Player</span>
+              </div>
               <AudioPlayer jobId={job.id} />
             </div>
           )}
 
           <div className="detail-section">
-            <h3><Info className="w-4 h-4" /> Status</h3>
+            <div className="detail-section-header">
+              <Info />
+              <span className="detail-section-title">Status</span>
+            </div>
             <div className="detail-grid">
               <div className="detail-item">
-                <span className="detail-label">Status</span>
+                <div className="detail-item-label">Status</div>
                 <span className={`status-pill ${job.status}`}>{job.status}</span>
               </div>
               <div className="detail-item">
-                <span className="detail-label">Progress</span>
-                <span className="detail-value">{job.progress}%</span>
+                <div className="detail-item-label">Progress</div>
+                <div className="detail-item-value">{job.progress}%</div>
               </div>
               <div className="detail-item">
-                <span className="detail-label">Stage</span>
-                <span className="detail-value">{job.stage || '-'}</span>
+                <div className="detail-item-label">Stage</div>
+                <div className="detail-item-value">{job.stage || '-'}</div>
               </div>
               <div className="detail-item">
-                <span className="detail-label">Chunks</span>
-                <span className="detail-value">{job.processed_chunks}/{job.chunk_count}</span>
+                <div className="detail-item-label">Chunks</div>
+                <div className="detail-item-value">{job.processed_chunks}/{job.chunk_count}</div>
               </div>
             </div>
           </div>
 
           <div className="detail-section">
-            <h3><BarChart3 className="w-4 h-4" /> Metrics</h3>
+            <div className="detail-section-header">
+              <BarChart3 />
+              <span className="detail-section-title">Metrics</span>
+            </div>
             <div className="detail-grid">
               <div className="detail-item">
-                <span className="detail-label">Text Length</span>
-                <span className="detail-value">{job.text_length?.toLocaleString()} chars</span>
+                <div className="detail-item-label">Text Length</div>
+                <div className="detail-item-value">{job.text_length?.toLocaleString()} chars</div>
               </div>
               <div className="detail-item">
-                <span className="detail-label">Audio Duration</span>
-                <span className="detail-value">{job.duration_seconds ? formatDuration(job.duration_seconds) : '-'}</span>
+                <div className="detail-item-label">Audio Duration</div>
+                <div className="detail-item-value">{job.duration_seconds ? formatDuration(job.duration_seconds) : '-'}</div>
               </div>
               <div className="detail-item">
-                <span className="detail-label">Processing Time</span>
-                <span className="detail-value">{runTime || '-'}</span>
+                <div className="detail-item-label">Processing Time</div>
+                <div className="detail-item-value">{runTime || '-'}</div>
               </div>
               <div className="detail-item">
-                <span className="detail-label">Created</span>
-                <span className="detail-value">{formatDate(job.created_at)}</span>
+                <div className="detail-item-label">Created</div>
+                <div className="detail-item-value">{formatDate(job.created_at)}</div>
               </div>
             </div>
           </div>
 
           <div className="detail-section">
-            <h3><Terminal className="w-4 h-4" /> Request</h3>
+            <div className="detail-section-header">
+              <Terminal />
+              <span className="detail-section-title">Request</span>
+            </div>
             <div className="code-block">
               <button className="copy-btn" onClick={() => copyToClipboard(JSON.stringify(requestPayload, null, 2))}>
-                {copied ? <CheckCircle2 className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                {copied ? <CheckCircle2 /> : <Copy />}
               </button>
               <pre>{JSON.stringify(requestPayload, null, 2)}</pre>
             </div>
@@ -316,7 +328,10 @@ const JobDetailModal = ({ job, onClose, onDownload, onDelete }) => {
 
           {isFailed && job.error && (
             <div className="detail-section error-section">
-              <h3><AlertCircle className="w-4 h-4" /> Error Log</h3>
+              <div className="detail-section-header">
+                <AlertCircle />
+                <span className="detail-section-title">Error Log</span>
+              </div>
               <div className="error-block">
                 <pre>{job.error}</pre>
               </div>
@@ -324,7 +339,10 @@ const JobDetailModal = ({ job, onClose, onDownload, onDelete }) => {
           )}
 
           <div className="detail-section">
-            <h3><FileText className="w-4 h-4" /> Activity Log</h3>
+            <div className="detail-section-header">
+              <FileText />
+              <span className="detail-section-title">Activity Log</span>
+            </div>
             <div className="log-entries">
               <div className="log-entry">
                 <span className="log-time">{formatDate(job.created_at)}</span>
@@ -345,7 +363,7 @@ const JobDetailModal = ({ job, onClose, onDownload, onDelete }) => {
               {isDone && (
                 <div className="log-entry success">
                   <span className="log-time">{formatDate(job.updated_at)}</span>
-                  <span className="log-msg">Job completed - {formatDuration(job.duration_seconds)} audio generated</span>
+                  <span className="log-msg">Job completed — {formatDuration(job.duration_seconds)} audio generated</span>
                 </div>
               )}
               {isFailed && (
@@ -361,11 +379,11 @@ const JobDetailModal = ({ job, onClose, onDownload, onDelete }) => {
         <div className="modal-footer">
           {isDone && (
             <button className="btn primary" onClick={() => onDownload(job)}>
-              <Download className="w-4 h-4" /> Download MP3
+              <Download /> Download MP3
             </button>
           )}
           <button className="btn danger" onClick={() => { onDelete(job.id); onClose(); }}>
-            <Trash2 className="w-4 h-4" /> Delete
+            <Trash2 /> Delete
           </button>
         </div>
       </div>
@@ -427,7 +445,7 @@ function App() {
         body: JSON.stringify({ name: name.trim(), text: text.trim() }),
       });
       if (response.ok) {
-        toast.success('Job created successfully!');
+        toast.success('Job created successfully');
         setName('');
         setText('');
         fetchJobs();
@@ -455,7 +473,7 @@ function App() {
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
-        toast.success('Download started!');
+        toast.success('Download started');
       }
     } catch (error) {
       toast.error('Failed to download');
@@ -476,7 +494,7 @@ function App() {
 
   const getStatusClass = (job) => {
     if (job.status === 'completed') return 'success';
-    if (job.status === 'failed') return 'danger';
+    if (job.status === 'failed') return 'error';
     const isStuck = ['queued', 'chunking', 'transcribing', 'merging'].includes(job.status) &&
       (new Date() - new Date(job.updated_at)) > 120000;
     if (isStuck) return 'warning';
@@ -498,7 +516,7 @@ function App() {
 
   return (
     <div className="app">
-      <Toaster position="top-right" richColors />
+      <Toaster position="top-right" toastOptions={{ style: { background: '#0F172A', color: '#fff', border: 'none' } }} />
 
       {selectedJob && (
         <JobDetailModal
@@ -514,81 +532,82 @@ function App() {
         <header className="header">
           <div className="brand">
             <div className="brand-icon">
-              <Volume2 className="w-6 h-6" />
+              <Volume2 />
             </div>
-            <div>
+            <div className="brand-text">
               <h1>Larynx TTS</h1>
-              <span>Powered by ElevenLabs v3</span>
+              <span>Text-to-Speech Pipeline</span>
             </div>
           </div>
           <div className="header-actions">
             <span className="last-updated">
-              <Calendar className="w-4 h-4" />
-              Last updated: {formatLastUpdated()}
+              <Calendar />
+              Updated {formatLastUpdated()}
             </span>
             <button className="refresh-btn" onClick={fetchJobs} data-testid="refresh-button">
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw />
             </button>
           </div>
         </header>
 
-        {/* Stats Row */}
-        <div className="stats-row">
-          <div className="stat-card">
-            <div className="stat-card-header">
+        {/* Metrics Row */}
+        <div className="metrics-row">
+          <div className="metric-card">
+            <div className="metric-label">
               <span>Completed</span>
-              <CheckCircle2 className="w-4 h-4" />
+              <CheckCircle2 />
             </div>
-            <div className="stat-value">{completedJobs.length}</div>
-            <div className="stat-trend positive">Ready for download</div>
+            <div className="metric-value">{completedJobs.length}</div>
+            <div className="metric-helper success">Ready for download</div>
           </div>
-          <div className="stat-card">
-            <div className="stat-card-header">
+          <div className="metric-card">
+            <div className="metric-label">
               <span>Processing</span>
-              <Activity className="w-4 h-4" />
+              <Activity />
             </div>
-            <div className="stat-value">{processingJobs.length}</div>
-            <div className="stat-trend neutral">In queue</div>
+            <div className="metric-value accent">{processingJobs.length}</div>
+            <div className="metric-helper">In queue</div>
           </div>
-          <div className="stat-card">
-            <div className="stat-card-header">
+          <div className="metric-card">
+            <div className="metric-label">
               <span>Failed</span>
-              <XCircle className="w-4 h-4" />
+              <XCircle />
             </div>
-            <div className="stat-value">{failedJobs.length}</div>
-            <div className="stat-trend negative">Needs attention</div>
+            <div className="metric-value">{failedJobs.length}</div>
+            <div className="metric-helper error">{failedJobs.length > 0 ? 'Needs attention' : 'No errors'}</div>
           </div>
-          <div className="stat-card">
-            <div className="stat-card-header">
+          <div className="metric-card">
+            <div className="metric-label">
               <span>Total Audio</span>
-              <Clock className="w-4 h-4" />
+              <Clock />
             </div>
-            <div className="stat-value">{formatDuration(totalDuration) || '0s'}</div>
-            <div className="stat-trend neutral">Generated content</div>
+            <div className="metric-value">{formatDuration(totalDuration) || '0s'}</div>
+            <div className="metric-helper">Generated content</div>
           </div>
-          <div className="stat-card">
-            <div className="stat-card-header">
+          <div className="metric-card">
+            <div className="metric-label">
               <span>Characters</span>
-              <FileText className="w-4 h-4" />
+              <FileText />
             </div>
-            <div className="stat-value">{totalChars > 1000 ? `${(totalChars / 1000).toFixed(0)}K` : totalChars}</div>
-            <div className="stat-trend neutral">Processed text</div>
+            <div className="metric-value">{totalChars > 1000 ? `${(totalChars / 1000).toFixed(0)}K` : totalChars}</div>
+            <div className="metric-helper">Processed text</div>
           </div>
         </div>
 
         {/* Main Content */}
-        <div className="main-grid">
+        <div className="content-grid">
           {/* Create Job Card */}
           <div className="card create-card">
             <div className="card-header">
-              <Mic className="w-5 h-5" />
-              <span>Create New Job</span>
+              <span className="card-header-icon"><Mic /></span>
+              <span className="card-title">Create New Job</span>
             </div>
             <form onSubmit={handleSubmit} className="create-form">
               <div className="form-group">
-                <label>Project Name</label>
+                <label className="form-label">Project Name</label>
                 <input
                   type="text"
+                  className="form-input"
                   placeholder="e.g., Chapter 1 Narration"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -596,8 +615,9 @@ function App() {
                 />
               </div>
               <div className="form-group">
-                <label>Text Content</label>
+                <label className="form-label">Text Content</label>
                 <textarea
+                  className="form-textarea"
                   placeholder="Paste your text here... (minimum 100 characters)"
                   value={text}
                   onChange={(e) => setText(e.target.value)}
@@ -605,16 +625,16 @@ function App() {
                 />
               </div>
               <div className="form-meta">
-                <span>{charCount.toLocaleString()} chars</span>
-                <span>{wordCount.toLocaleString()} words</span>
-                {charCount > 100 && <span className="highlight">~{estimatedChunks} chunks</span>}
-                {charCount > 0 && charCount < 100 && <span className="warning">Min 100 chars</span>}
+                <span className="form-meta-item">{charCount.toLocaleString()} characters</span>
+                <span className="form-meta-item">{wordCount.toLocaleString()} words</span>
+                {charCount > 100 && <span className="form-meta-item accent">~{estimatedChunks} chunks</span>}
+                {charCount > 0 && charCount < 100 && <span className="form-meta-item error">Min 100 chars required</span>}
               </div>
-              <button type="submit" className="submit-btn" disabled={!canSubmit} data-testid="create-job-submit-button">
+              <button type="submit" className="btn-primary" disabled={!canSubmit} data-testid="create-job-submit-button">
                 {isCreating ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Creating...</>
+                  <><Loader2 className="animate-spin" /> Creating...</>
                 ) : (
-                  <><Play className="w-4 h-4" /> Generate Audio</>
+                  <><Play /> Generate Audio</>
                 )}
               </button>
             </form>
@@ -623,35 +643,35 @@ function App() {
           {/* Jobs Table */}
           <div className="card jobs-card">
             <div className="card-header">
-              <Layers className="w-5 h-5" />
-              <span>Jobs</span>
-              <span className="badge">{jobs.length}</span>
-              <span className="hint">Click on a row to view details</span>
+              <span className="card-header-icon"><Layers /></span>
+              <span className="card-title">Jobs</span>
+              <span className="card-badge">{jobs.length}</span>
+              <span className="card-hint">Click row to view details</span>
             </div>
 
             <div className="table-container">
               {isLoadingJobs && jobs.length === 0 ? (
                 <div className="empty-state">
-                  <Loader2 className="w-8 h-8 animate-spin" />
+                  <Loader2 className="animate-spin" />
                   <span>Loading jobs...</span>
                 </div>
               ) : jobs.length === 0 ? (
                 <div className="empty-state" data-testid="jobs-empty-state">
-                  <Mic className="w-10 h-10" />
-                  <span>No jobs yet. Create your first one!</span>
+                  <Mic />
+                  <span>No jobs yet. Create your first one above.</span>
                 </div>
               ) : (
                 <table className="jobs-table">
                   <thead>
                     <tr>
-                      <th>Name</th>
-                      <th>Size</th>
-                      <th>Chunks</th>
-                      <th>Audio</th>
-                      <th>Time</th>
-                      <th>Progress</th>
-                      <th>Status</th>
-                      <th>Actions</th>
+                      <th className="col-name">Name</th>
+                      <th className="col-size">Size</th>
+                      <th className="col-chunks">Chunks</th>
+                      <th className="col-audio">Audio</th>
+                      <th className="col-time">Time</th>
+                      <th className="col-progress">Progress</th>
+                      <th className="col-status">Status</th>
+                      <th className="col-actions">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -668,47 +688,47 @@ function App() {
                           data-testid={`jobs-table-row-${job.id}`}
                         >
                           <td>
-                            <div className="name-cell">
-                              <div className={`status-indicator ${statusClass}`} />
-                              <div className="name-content">
+                            <div className="cell-name">
+                              <div className={`status-dot ${statusClass}`} />
+                              <div className="cell-name-content">
                                 <span className="job-name" data-testid="job-name-cell">{job.name}</span>
-                                {isFailed && <span className="job-error-hint">Click to view error</span>}
+                                {isFailed && <div className="job-subtitle">Click to view error</div>}
                               </div>
                             </div>
                           </td>
                           <td><span className="cell-value">{job.text_length?.toLocaleString()}</span></td>
                           <td><span className="cell-value">{job.chunk_count}</span></td>
-                          <td><span className={`cell-value ${!isDone ? 'cell-muted' : ''}`}>{isDone && job.duration_seconds ? formatDuration(job.duration_seconds) : '-'}</span></td>
-                          <td><span className={`cell-value ${!runTime ? 'cell-muted' : ''}`}>{runTime || '-'}</span></td>
+                          <td><span className={`cell-value ${!isDone ? 'muted' : ''}`}>{isDone && job.duration_seconds ? formatDuration(job.duration_seconds) : '-'}</span></td>
+                          <td><span className={`cell-value ${!runTime ? 'muted' : ''}`}>{runTime || '-'}</span></td>
                           <td>
-                            <div className="progress-cell">
+                            <div className="cell-progress">
                               <div className="progress-bar">
                                 <div className={`progress-fill ${statusClass}`} style={{ width: `${job.progress}%` }} />
                               </div>
-                              <span className="progress-text">{job.progress}%</span>
+                              <span className="progress-value">{job.progress}%</span>
                             </div>
                           </td>
                           <td>
-                            <span className={`status-badge ${statusClass}`}>
-                              {isDone && <CheckCircle2 className="w-3 h-3" />}
-                              {isFailed && <XCircle className="w-3 h-3" />}
-                              {statusClass === 'processing' && <Loader2 className="w-3 h-3 animate-spin" />}
-                              {statusClass === 'warning' && <AlertCircle className="w-3 h-3" />}
+                            <span className={`status-chip ${statusClass}`}>
+                              {isDone && <CheckCircle2 />}
+                              {isFailed && <XCircle />}
+                              {statusClass === 'processing' && <Loader2 className="animate-spin" />}
+                              {statusClass === 'warning' && <AlertCircle />}
                               {getStatusLabel(job)}
                             </span>
                           </td>
                           <td onClick={e => e.stopPropagation()}>
-                            <div className="actions-cell">
+                            <div className="cell-actions">
                               {isDone && (
                                 <>
                                   <MiniPlayButton jobId={job.id} />
                                   <button className="action-btn download" onClick={() => handleDownload(job)} data-testid="job-download-button">
-                                    <Download className="w-4 h-4" />
+                                    <Download />
                                   </button>
                                 </>
                               )}
                               <button className="action-btn delete" onClick={() => handleDelete(job.id)} data-testid="job-delete-button">
-                                <Trash2 className="w-4 h-4" />
+                                <Trash2 />
                               </button>
                             </div>
                           </td>
