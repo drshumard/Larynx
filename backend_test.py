@@ -9,7 +9,7 @@ import sys
 from datetime import datetime
 
 # Use the public endpoint
-BASE_URL = "https://speech-chunk-builder.preview.emergentagent.com"
+BASE_URL = "https://larynx-voice.preview.emergentagent.com"
 
 class TTSChunkerAPITester:
     def __init__(self):
