@@ -1029,6 +1029,11 @@ const DashboardPage = () => {
 
   return (
     <div className="app">
+      <SettingsModal 
+        isOpen={showSettings} 
+        onClose={() => setShowSettings(false)} 
+      />
+      
       <div className="dashboard">
         {/* Header */}
         <header className="header">
@@ -1046,6 +1051,9 @@ const DashboardPage = () => {
               <Calendar />
               Updated {formatLastUpdated()}
             </span>
+            <button className="settings-btn" onClick={() => setShowSettings(true)} data-testid="settings-button">
+              <Settings />
+            </button>
             <button className="refresh-btn" onClick={fetchJobs} data-testid="refresh-button">
               <RefreshCw />
             </button>
