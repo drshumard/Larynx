@@ -421,6 +421,11 @@ async def process_tts_job(job_id: str):
                 )
                 audio_chunks.append(audio_data)
                 
+                # Save individual chunk audio file
+                chunk_audio_path = os.path.join(STORAGE_DIR, f"{job_id}_chunk_{i}.mp3")
+                with open(chunk_audio_path, "wb") as f:
+                    f.write(audio_data)
+                
                 # Update progress and chunk request status
                 progress = int(((i + 1) / chunk_count) * 85)  # 85% for TTS, 15% for merge
                 await db.jobs.update_one(
@@ -432,7 +437,9 @@ async def process_tts_job(job_id: str):
                             "stage": f"Converting to speech ({i + 1}/{chunk_count})...",
                             "updated_at": datetime.utcnow(),
                             f"chunk_requests.{i}.status": "completed",
-                            f"chunk_requests.{i}.processed_at": datetime.utcnow().isoformat()
+                            f"chunk_requests.{i}.processed_at": datetime.utcnow().isoformat(),
+                            f"chunk_requests.{i}.audio_path": chunk_audio_path,
+                            f"chunk_requests.{i}.audio_url": f"/api/jobs/{job_id}/chunks/{i}/audio"
                         }
                     }
                 )
