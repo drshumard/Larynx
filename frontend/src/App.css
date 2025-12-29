@@ -1123,3 +1123,492 @@ body {
     max-height: 90vh;
   }
 }
+
+/* ==================== JOB DETAILS PAGE ==================== */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 100px 20px;
+  color: var(--text-muted);
+  gap: 16px;
+}
+
+.loading-state svg {
+  width: 32px;
+  height: 32px;
+}
+
+/* Detail Header */
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: var(--space-lg);
+  margin-bottom: var(--space-lg);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.detail-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.back-btn {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.back-btn:hover {
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+}
+
+.back-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.detail-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.detail-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.detail-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Detail Grid */
+.detail-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-lg);
+}
+
+.card-body {
+  padding: 20px;
+}
+
+/* Summary Grid */
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.summary-item {
+  background: var(--bg-primary);
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+}
+
+.summary-label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.summary-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.summary-player {
+  margin-top: 16px;
+}
+
+.summary-error {
+  margin-top: 16px;
+}
+
+/* Config Grid */
+.config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.config-item {
+  background: var(--bg-primary);
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+}
+
+.config-item.full {
+  grid-column: 1 / -1;
+}
+
+.config-label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+.config-value {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.config-value.code {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 13px;
+  color: var(--text-subtle);
+}
+
+.config-settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.setting-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  font-size: 12px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  color: var(--text-subtle);
+}
+
+.setting-badge.accent {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.empty-config {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.copy-btn-header {
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: var(--bg-primary);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.copy-btn-header:hover {
+  background: var(--border-color);
+  color: var(--text-primary);
+}
+
+.copy-btn-header svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Chunks Section */
+.chunks-card {
+  margin-bottom: var(--space-xl);
+}
+
+.card-header-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+
+.btn-text {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+}
+
+.btn-text:hover {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.chunks-list {
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.empty-chunks {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+  gap: 12px;
+}
+
+.empty-chunks svg {
+  width: 40px;
+  height: 40px;
+  opacity: 0.4;
+}
+
+/* Chunk Card */
+.chunk-card {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.chunk-card:last-child {
+  border-bottom: none;
+}
+
+.chunk-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.chunk-header:hover {
+  background: var(--bg-primary);
+}
+
+.chunk-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chunk-chevron {
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+}
+
+.chunk-index {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.chunk-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.chunk-status svg {
+  width: 12px;
+  height: 12px;
+}
+
+.chunk-status.success {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.chunk-status.error {
+  background: var(--error-bg);
+  color: var(--error);
+}
+
+.chunk-status.pending {
+  background: var(--bg-primary);
+  color: var(--text-muted);
+}
+
+.chunk-header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.chunk-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Chunk Body */
+.chunk-body {
+  padding: 0 20px 20px 48px;
+}
+
+.chunk-section {
+  margin-bottom: 16px;
+}
+
+.chunk-section:last-child {
+  margin-bottom: 0;
+}
+
+.chunk-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.chunk-section-header svg {
+  width: 14px;
+  height: 14px;
+}
+
+.chunk-section-header.error {
+  color: var(--error);
+}
+
+.copy-btn-inline {
+  margin-left: auto;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+}
+
+.copy-btn-inline:hover {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.copy-btn-inline svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Text Block */
+.text-block {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.text-block pre {
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Scrollbar for chunks list */
+.chunks-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chunks-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chunks-list::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 6px;
+}
+
+.chunks-list::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Responsive for details page */
+@media (max-width: 1200px) {
+  .detail-grid-2 {
+    grid-template-columns: 1fr;
+  }
+  
+  .summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .detail-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  
+  .detail-header-right {
+    width: 100%;
+  }
+  
+  .detail-header-right .btn {
+    flex: 1;
+  }
+  
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .config-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .chunk-body {
+    padding-left: 20px;
+  }
+}
+
