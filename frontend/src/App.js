@@ -911,6 +911,7 @@ const DashboardPage = () => {
   const [name, setName] = useState('');
   const [text, setText] = useState('');
   const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [showSettings, setShowSettings] = useState(false);
 
   const completedJobs = jobs.filter(j => j.status === 'completed');
   const processingJobs = jobs.filter(j => ['queued', 'chunking', 'transcribing', 'merging'].includes(j.status));
