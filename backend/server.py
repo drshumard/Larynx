@@ -362,7 +362,7 @@ async def process_tts_job(job_id: str):
                 )
                 audio_chunks.append(audio_data)
                 
-                # Update progress
+                # Update progress and chunk request status
                 progress = int(((i + 1) / chunk_count) * 85)  # 85% for TTS, 15% for merge
                 await db.jobs.update_one(
                     {"_id": ObjectId(job_id)},
@@ -371,11 +371,24 @@ async def process_tts_job(job_id: str):
                             "processed_chunks": i + 1,
                             "progress": progress,
                             "stage": f"Converting to speech ({i + 1}/{chunk_count})...",
-                            "updated_at": datetime.utcnow()
+                            "updated_at": datetime.utcnow(),
+                            f"chunk_requests.{i}.status": "completed",
+                            f"chunk_requests.{i}.processed_at": datetime.utcnow().isoformat()
                         }
                     }
                 )
             except Exception as e:
+                # Mark chunk as failed
+                await db.jobs.update_one(
+                    {"_id": ObjectId(job_id)},
+                    {
+                        "$set": {
+                            f"chunk_requests.{i}.status": "failed",
+                            f"chunk_requests.{i}.error": str(e),
+                            f"chunk_requests.{i}.processed_at": datetime.utcnow().isoformat()
+                        }
+                    }
+                )
                 print(f"Error processing chunk {i + 1}: {e}")
                 raise
         
