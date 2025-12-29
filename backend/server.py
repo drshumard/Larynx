@@ -844,6 +844,38 @@ async def download_job_audio(job_id: str):
     )
 
 
+@app.get("/api/jobs/{job_id}/chunks/{chunk_index}/audio")
+async def get_chunk_audio(job_id: str, chunk_index: int):
+    """Stream audio for a specific chunk."""
+    try:
+        job = await db.jobs.find_one({"_id": ObjectId(job_id)})
+    except:
+        raise HTTPException(status_code=400, detail="Invalid job ID")
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    chunk_requests = job.get("chunk_requests", [])
+    if chunk_index < 0 or chunk_index >= len(chunk_requests):
+        raise HTTPException(status_code=404, detail="Chunk not found")
+    
+    chunk = chunk_requests[chunk_index]
+    audio_path = chunk.get("audio_path")
+    
+    if not audio_path or not os.path.exists(audio_path):
+        raise HTTPException(status_code=404, detail="Chunk audio file not found")
+    
+    # Sanitize filename
+    safe_name = re.sub(r'[^a-zA-Z0-9_-]', '_', job["name"])[:30]
+    filename = f"{safe_name}_chunk_{chunk_index + 1}.mp3"
+    
+    return FileResponse(
+        path=audio_path,
+        media_type="audio/mpeg",
+        filename=filename
+    )
+
+
 @app.delete("/api/jobs/{job_id}")
 async def delete_job(job_id: str):
     """Delete a job and its audio file."""
