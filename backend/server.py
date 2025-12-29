@@ -155,6 +155,16 @@ def serialize_doc(doc: dict) -> dict:
     return result
 
 
+async def get_tts_settings():
+    """Get current TTS settings from database, or return defaults."""
+    settings_doc = await db.settings.find_one({"_id": "tts_settings"})
+    if settings_doc:
+        # Remove MongoDB _id from result
+        del settings_doc["_id"]
+        return settings_doc
+    return DEFAULT_TTS_SETTINGS.copy()
+
+
 def split_text_into_chunks(text: str, max_chars: int = MAX_CHUNK_SIZE) -> list[str]:
     """
     Split text at sentence boundaries while keeping chunks under max_chars.
