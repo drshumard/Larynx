@@ -641,6 +641,38 @@ async def get_job(job_id: str):
     }
 
 
+@app.get("/api/jobs/{job_id}/details")
+async def get_job_details(job_id: str):
+    """Get full job details including all chunk requests for debugging."""
+    try:
+        job = await db.jobs.find_one({"_id": ObjectId(job_id)})
+    except:
+        raise HTTPException(status_code=400, detail="Invalid job ID")
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    serialized = serialize_doc(job)
+    
+    return {
+        "id": serialized["_id"],
+        "name": serialized["name"],
+        "status": serialized["status"],
+        "stage": serialized.get("stage"),
+        "progress": serialized["progress"],
+        "chunk_count": serialized["chunk_count"],
+        "processed_chunks": serialized["processed_chunks"],
+        "text_length": serialized["text_length"],
+        "error": serialized.get("error"),
+        "audio_url": serialized.get("audio_url"),
+        "duration_seconds": serialized.get("duration_seconds"),
+        "created_at": serialized["created_at"],
+        "updated_at": serialized["updated_at"],
+        "tts_config": serialized.get("tts_config"),
+        "chunk_requests": serialized.get("chunk_requests", [])
+    }
+
+
 @app.get("/api/jobs/{job_id}/download")
 async def download_job_audio(job_id: str):
     """Download the audio file for a completed job."""
