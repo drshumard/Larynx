@@ -878,7 +878,7 @@ async def get_chunk_audio(job_id: str, chunk_index: int):
 
 @app.delete("/api/jobs/{job_id}")
 async def delete_job(job_id: str):
-    """Delete a job and its audio file."""
+    """Delete a job and its audio files (including chunks)."""
     try:
         job = await db.jobs.find_one({"_id": ObjectId(job_id)})
     except:
@@ -887,10 +887,20 @@ async def delete_job(job_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    # Delete audio file if exists
+    # Delete main audio file if exists
     audio_path = job.get("audio_path")
     if audio_path and os.path.exists(audio_path):
         os.remove(audio_path)
+    
+    # Delete chunk audio files
+    chunk_requests = job.get("chunk_requests", [])
+    for chunk in chunk_requests:
+        chunk_audio_path = chunk.get("audio_path")
+        if chunk_audio_path and os.path.exists(chunk_audio_path):
+            try:
+                os.remove(chunk_audio_path)
+            except:
+                pass  # Ignore errors cleaning up chunk files
     
     # Delete from database
     await db.jobs.delete_one({"_id": ObjectId(job_id)})
