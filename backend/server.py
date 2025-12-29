@@ -551,6 +551,78 @@ async def health_check():
     return {"status": "healthy", "service": "tts-chunker"}
 
 
+@app.get("/api/settings")
+async def get_settings():
+    """Get current TTS settings."""
+    settings = await get_tts_settings()
+    return settings
+
+
+@app.put("/api/settings")
+async def update_settings(settings: TTSSettings):
+    """Update TTS settings. Settings persist until changed again."""
+    settings_dict = {
+        "voice_id": settings.voice_id,
+        "model_id": settings.model_id,
+        "output_format": settings.output_format,
+        "voice_settings": {
+            "stability": settings.voice_settings.stability,
+            "similarity_boost": settings.voice_settings.similarity_boost,
+            "speed": settings.voice_settings.speed,
+            "style": settings.voice_settings.style,
+            "use_speaker_boost": settings.voice_settings.use_speaker_boost
+        }
+    }
+    
+    # Upsert settings document
+    await db.settings.update_one(
+        {"_id": "tts_settings"},
+        {"$set": settings_dict},
+        upsert=True
+    )
+    
+    return {"message": "Settings updated successfully", "settings": settings_dict}
+
+
+@app.patch("/api/settings")
+async def patch_settings(updates: TTSSettingsUpdate):
+    """Partially update TTS settings. Only provided fields are updated."""
+    current_settings = await get_tts_settings()
+    
+    # Apply updates
+    if updates.voice_id is not None:
+        current_settings["voice_id"] = updates.voice_id
+    if updates.model_id is not None:
+        current_settings["model_id"] = updates.model_id
+    if updates.output_format is not None:
+        current_settings["output_format"] = updates.output_format
+    if updates.voice_settings is not None:
+        vs = updates.voice_settings
+        current_vs = current_settings.get("voice_settings", {})
+        current_vs["stability"] = vs.stability
+        current_vs["similarity_boost"] = vs.similarity_boost
+        current_vs["speed"] = vs.speed
+        current_vs["style"] = vs.style
+        current_vs["use_speaker_boost"] = vs.use_speaker_boost
+        current_settings["voice_settings"] = current_vs
+    
+    # Upsert settings document
+    await db.settings.update_one(
+        {"_id": "tts_settings"},
+        {"$set": current_settings},
+        upsert=True
+    )
+    
+    return {"message": "Settings updated successfully", "settings": current_settings}
+
+
+@app.post("/api/settings/reset")
+async def reset_settings():
+    """Reset TTS settings to defaults."""
+    await db.settings.delete_one({"_id": "tts_settings"})
+    return {"message": "Settings reset to defaults", "settings": DEFAULT_TTS_SETTINGS}
+
+
 @app.post("/api/jobs", response_model=JobResponse)
 async def create_job(job_data: JobCreate, background_tasks: BackgroundTasks):
     """Create a new TTS job."""
