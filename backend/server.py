@@ -560,12 +560,9 @@ async def create_job(job_data: JobCreate, background_tasks: BackgroundTasks):
     if len(chunks) == 0:
         raise HTTPException(status_code=400, detail="Text is too short to process")
     
-    # Build chunk requests with full details
-    voice_settings = {
-        "stability": 0.5,
-        "similarity_boost": 1,
-        "speed": 1.2
-    }
+    # Get current TTS settings
+    tts_settings = await get_tts_settings()
+    voice_settings = tts_settings.get("voice_settings", DEFAULT_TTS_SETTINGS["voice_settings"])
     
     chunk_requests = []
     for i, chunk_text in enumerate(chunks):
@@ -573,9 +570,9 @@ async def create_job(job_data: JobCreate, background_tasks: BackgroundTasks):
             "chunk_index": i,
             "request": {
                 "endpoint": "POST https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
-                "voice_id": ELEVENLABS_VOICE_ID,
-                "model_id": ELEVENLABS_MODEL,
-                "output_format": "mp3_44100_128",
+                "voice_id": tts_settings.get("voice_id", ELEVENLABS_VOICE_ID),
+                "model_id": tts_settings.get("model_id", ELEVENLABS_MODEL),
+                "output_format": tts_settings.get("output_format", "mp3_44100_128"),
                 "voice_settings": voice_settings,
                 "text": chunk_text,
                 "text_length": len(chunk_text)
@@ -595,9 +592,9 @@ async def create_job(job_data: JobCreate, background_tasks: BackgroundTasks):
         "chunk_requests": chunk_requests,
         "tts_config": {
             "api": "ElevenLabs",
-            "voice_id": ELEVENLABS_VOICE_ID,
-            "model_id": ELEVENLABS_MODEL,
-            "output_format": "mp3_44100_128",
+            "voice_id": tts_settings.get("voice_id", ELEVENLABS_VOICE_ID),
+            "model_id": tts_settings.get("model_id", ELEVENLABS_MODEL),
+            "output_format": tts_settings.get("output_format", "mp3_44100_128"),
             "voice_settings": voice_settings
         },
         "status": "queued",
