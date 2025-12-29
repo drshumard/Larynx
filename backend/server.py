@@ -515,17 +515,21 @@ async def process_tts_job(job_id: str):
         )
 
 
-def tts_chunk_to_audio_sync(client: ElevenLabs, text: str) -> bytes:
+def tts_chunk_to_audio_sync(client: ElevenLabs, text: str, settings: dict) -> bytes:
     """Synchronous version of TTS conversion."""
+    voice_settings = settings.get("voice_settings", {})
+    
     audio_generator = client.text_to_speech.convert(
         text=text,
-        voice_id=ELEVENLABS_VOICE_ID,
-        model_id=ELEVENLABS_MODEL,
-        output_format="mp3_44100_128",
+        voice_id=settings.get("voice_id", ELEVENLABS_VOICE_ID),
+        model_id=settings.get("model_id", ELEVENLABS_MODEL),
+        output_format=settings.get("output_format", "mp3_44100_128"),
         voice_settings={
-            "stability": 0.5,
-            "similarity_boost": 1,
-            "speed": 1.2
+            "stability": voice_settings.get("stability", 0.5),
+            "similarity_boost": voice_settings.get("similarity_boost", 1),
+            "speed": voice_settings.get("speed", 1.2),
+            "style": voice_settings.get("style", 0),
+            "use_speaker_boost": voice_settings.get("use_speaker_boost", False)
         }
     )
     
