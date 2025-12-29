@@ -228,8 +228,150 @@ const MiniPlayButton = ({ jobId }) => {
   );
 };
 
+// Chunk Audio Player Component
+const ChunkAudioPlayer = ({ jobId, chunkIndex }) => {
+  const audioRef = useRef(null);
+  const trackRef = useRef(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDragging, setIsDragging] = useState(false);
+  const [error, setError] = useState(false);
+
+  const audioUrl = `${API_URL}/api/jobs/${jobId}/chunks/${chunkIndex}/audio`;
+
+  const togglePlay = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        // Pause other audio elements
+        document.querySelectorAll('audio').forEach(a => {
+          if (a !== audioRef.current) a.pause();
+        });
+        audioRef.current.play();
+      }
+    }
+  };
+
+  const handleTimeUpdate = () => {
+    if (audioRef.current && !isDragging) {
+      setCurrentTime(audioRef.current.currentTime);
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    if (audioRef.current) {
+      setDuration(audioRef.current.duration);
+      setIsLoading(false);
+    }
+  };
+
+  const handleError = () => {
+    setError(true);
+    setIsLoading(false);
+  };
+
+  const handleSeek = (e) => {
+    if (!trackRef.current || !audioRef.current || !duration) return;
+    const rect = trackRef.current.getBoundingClientRect();
+    const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const newTime = percent * duration;
+    audioRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
+  const handleMouseDown = (e) => {
+    setIsDragging(true);
+    handleSeek(e);
+  };
+
+  const handleMouseMove = (e) => {
+    if (isDragging) {
+      handleSeek(e);
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  useEffect(() => {
+    if (isDragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging]);
+
+  const formatTime = (time) => {
+    if (!time || isNaN(time)) return '0:00';
+    const mins = Math.floor(time / 60);
+    const secs = Math.floor(time % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const progressPercent = duration ? (currentTime / duration) * 100 : 0;
+
+  if (error) {
+    return (
+      <div className="chunk-audio-error">
+        <AlertCircle />
+        <span>Audio not available</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="chunk-audio-player">
+      <audio
+        ref={audioRef}
+        src={audioUrl}
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => setIsPlaying(false)}
+        onError={handleError}
+        preload="metadata"
+      />
+
+      <button className="chunk-play-btn" onClick={togglePlay} disabled={isLoading}>
+        {isLoading ? (
+          <Loader2 className="animate-spin" />
+        ) : isPlaying ? (
+          <Pause />
+        ) : (
+          <Play style={{ marginLeft: '1px' }} />
+        )}
+      </button>
+
+      <div className="chunk-player-controls">
+        <div
+          className="chunk-player-track"
+          ref={trackRef}
+          onMouseDown={handleMouseDown}
+        >
+          <div
+            className="chunk-player-progress"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+        <div className="chunk-player-times">
+          <span>{formatTime(currentTime)}</span>
+          <span>{formatTime(duration)}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Chunk Request Card Component
-const ChunkRequestCard = ({ chunk, index, isExpanded, onToggle }) => {
+const ChunkRequestCard = ({ chunk, index, isExpanded, onToggle, jobId }) => {
   const [copied, setCopied] = useState(false);
   
   const copyToClipboard = (text) => {
@@ -239,6 +381,7 @@ const ChunkRequestCard = ({ chunk, index, isExpanded, onToggle }) => {
   };
 
   const statusClass = chunk.status === 'completed' ? 'success' : chunk.status === 'failed' ? 'error' : 'pending';
+  const hasAudio = chunk.status === 'completed' && chunk.audio_url;
 
   return (
     <div className="chunk-card">
@@ -252,6 +395,7 @@ const ChunkRequestCard = ({ chunk, index, isExpanded, onToggle }) => {
             {chunk.status === 'pending' && <Clock />}
             {chunk.status}
           </span>
+          {hasAudio && <Volume2 className="chunk-has-audio" />}
         </div>
         <div className="chunk-header-right">
           <span className="chunk-meta">{chunk.request?.text_length?.toLocaleString()} chars</span>
@@ -261,6 +405,16 @@ const ChunkRequestCard = ({ chunk, index, isExpanded, onToggle }) => {
       
       {isExpanded && (
         <div className="chunk-body">
+          {hasAudio && (
+            <div className="chunk-section">
+              <div className="chunk-section-header">
+                <Volume2 />
+                <span>Audio</span>
+              </div>
+              <ChunkAudioPlayer jobId={jobId} chunkIndex={index} />
+            </div>
+          )}
+          
           <div className="chunk-section">
             <div className="chunk-section-header">
               <Terminal />
