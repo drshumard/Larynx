@@ -711,6 +711,7 @@ const JobDetailsPage = () => {
                   index={index}
                   isExpanded={expandedChunks.has(index)}
                   onToggle={() => toggleChunk(index)}
+                  jobId={job.id}
                 />
               ))
             ) : (
