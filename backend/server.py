@@ -388,6 +388,9 @@ async def process_tts_job(job_id: str):
             print(f"Job {job_id} not found")
             return
         
+        # Get TTS settings from job (stored at creation time)
+        tts_settings = job.get("tts_config", DEFAULT_TTS_SETTINGS)
+        
         # Update status to chunking
         await db.jobs.update_one(
             {"_id": ObjectId(job_id)},
@@ -414,7 +417,7 @@ async def process_tts_job(job_id: str):
             
             try:
                 audio_data = await asyncio.to_thread(
-                    lambda ct=chunk_text: tts_chunk_to_audio_sync(eleven_client, ct)
+                    lambda ct=chunk_text, s=tts_settings: tts_chunk_to_audio_sync(eleven_client, ct, s)
                 )
                 audio_chunks.append(audio_data)
                 
