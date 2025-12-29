@@ -99,6 +99,43 @@ class JobResponse(BaseModel):
     updated_at: str
 
 
+class VoiceSettings(BaseModel):
+    stability: float = Field(0.5, ge=0, le=1, description="Controls consistency (0-1)")
+    similarity_boost: float = Field(1, ge=0, le=1, description="Voice similarity (0-1)")
+    speed: float = Field(1.2, ge=0.5, le=2.0, description="Speech speed (0.5-2.0)")
+    style: float = Field(0, ge=0, le=1, description="Expressive style (0-1)")
+    use_speaker_boost: bool = Field(False, description="Extra speaker similarity")
+
+
+class TTSSettings(BaseModel):
+    voice_id: str = Field(default="LNHBM9NjjOl44Efsdmtl", description="ElevenLabs voice ID")
+    model_id: str = Field(default="eleven_v3", description="ElevenLabs model ID")
+    output_format: str = Field(default="mp3_44100_128", description="Audio output format")
+    voice_settings: VoiceSettings = Field(default_factory=VoiceSettings)
+
+
+class TTSSettingsUpdate(BaseModel):
+    voice_id: Optional[str] = None
+    model_id: Optional[str] = None
+    output_format: Optional[str] = None
+    voice_settings: Optional[VoiceSettings] = None
+
+
+# Default TTS settings
+DEFAULT_TTS_SETTINGS = {
+    "voice_id": ELEVENLABS_VOICE_ID,
+    "model_id": ELEVENLABS_MODEL,
+    "output_format": "mp3_44100_128",
+    "voice_settings": {
+        "stability": 0.5,
+        "similarity_boost": 1,
+        "speed": 1.2,
+        "style": 0,
+        "use_speaker_boost": False
+    }
+}
+
+
 def serialize_doc(doc: dict) -> dict:
     """Serialize MongoDB document for JSON response."""
     if doc is None:
