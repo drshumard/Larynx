@@ -1951,3 +1951,98 @@ body {
     padding: 6px 10px;
   }
 }
+
+/* ==================== CHUNK AUDIO PLAYER ==================== */
+.chunk-has-audio {
+  width: 14px;
+  height: 14px;
+  color: var(--accent);
+  margin-left: 8px;
+}
+
+.chunk-audio-player {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+}
+
+.chunk-play-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: var(--accent);
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.chunk-play-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+  transform: scale(1.05);
+}
+
+.chunk-play-btn:disabled {
+  background: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.chunk-play-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.chunk-player-controls {
+  flex: 1;
+  min-width: 0;
+}
+
+.chunk-player-track {
+  height: 4px;
+  background: var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+  margin-bottom: 6px;
+}
+
+.chunk-player-progress {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+  transition: width 0.05s linear;
+}
+
+.chunk-player-times {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.chunk-audio-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--error-bg);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  border-radius: var(--radius-md);
+  color: var(--error);
+  font-size: 12px;
+}
+
+.chunk-audio-error svg {
+  width: 14px;
+  height: 14px;
+}
