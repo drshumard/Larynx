@@ -572,6 +572,336 @@ const JobDetailsPage = () => {
   );
 };
 
+// Settings Modal Component
+const SettingsModal = ({ isOpen, onClose, onSave }) => {
+  const [settings, setSettings] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [jsonView, setJsonView] = useState(false);
+  const [jsonText, setJsonText] = useState('');
+  const [jsonError, setJsonError] = useState(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchSettings();
+    }
+  }, [isOpen]);
+
+  const fetchSettings = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/settings`);
+      if (response.ok) {
+        const data = await response.json();
+        setSettings(data);
+        setJsonText(JSON.stringify(data, null, 2));
+        setJsonError(null);
+      }
+    } catch (error) {
+      toast.error('Failed to load settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      let settingsToSave = settings;
+      
+      // If in JSON view, parse the JSON text
+      if (jsonView) {
+        try {
+          settingsToSave = JSON.parse(jsonText);
+          setJsonError(null);
+        } catch (e) {
+          setJsonError('Invalid JSON format');
+          setSaving(false);
+          return;
+        }
+      }
+
+      const response = await fetch(`${API_URL}/api/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settingsToSave),
+      });
+      
+      if (response.ok) {
+        toast.success('Settings saved successfully');
+        onSave && onSave();
+        onClose();
+      } else {
+        const error = await response.json();
+        toast.error(error.detail || 'Failed to save settings');
+      }
+    } catch (error) {
+      toast.error('Failed to save settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReset = async () => {
+    setSaving(true);
+    try {
+      const response = await fetch(`${API_URL}/api/settings/reset`, {
+        method: 'POST',
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setSettings(data.settings);
+        setJsonText(JSON.stringify(data.settings, null, 2));
+        toast.success('Settings reset to defaults');
+      }
+    } catch (error) {
+      toast.error('Failed to reset settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateSetting = (path, value) => {
+    setSettings(prev => {
+      const newSettings = { ...prev };
+      if (path.includes('.')) {
+        const [parent, child] = path.split('.');
+        newSettings[parent] = { ...newSettings[parent], [child]: value };
+      } else {
+        newSettings[path] = value;
+      }
+      setJsonText(JSON.stringify(newSettings, null, 2));
+      return newSettings;
+    });
+  };
+
+  const handleJsonChange = (text) => {
+    setJsonText(text);
+    try {
+      const parsed = JSON.parse(text);
+      setSettings(parsed);
+      setJsonError(null);
+    } catch (e) {
+      setJsonError('Invalid JSON');
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content settings-modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2 className="modal-title">
+            <Settings className="modal-title-icon" />
+            TTS Settings
+          </h2>
+          <div className="modal-header-actions">
+            <button 
+              className={`view-toggle ${!jsonView ? 'active' : ''}`} 
+              onClick={() => setJsonView(false)}
+            >
+              Form
+            </button>
+            <button 
+              className={`view-toggle ${jsonView ? 'active' : ''}`} 
+              onClick={() => setJsonView(true)}
+            >
+              JSON
+            </button>
+          </div>
+          <button className="modal-close" onClick={onClose}>
+            <X />
+          </button>
+        </div>
+
+        <div className="modal-body">
+          {loading ? (
+            <div className="settings-loading">
+              <Loader2 className="animate-spin" />
+              <span>Loading settings...</span>
+            </div>
+          ) : jsonView ? (
+            <div className="json-editor">
+              <textarea
+                className="json-textarea"
+                value={jsonText}
+                onChange={(e) => handleJsonChange(e.target.value)}
+                spellCheck={false}
+              />
+              {jsonError && <div className="json-error">{jsonError}</div>}
+            </div>
+          ) : (
+            <div className="settings-form">
+              <div className="settings-section">
+                <h3 className="settings-section-title">
+                  <Terminal />
+                  API Configuration
+                </h3>
+                <div className="settings-grid">
+                  <div className="setting-item">
+                    <label className="setting-label">Voice ID</label>
+                    <input
+                      type="text"
+                      className="setting-input"
+                      value={settings?.voice_id || ''}
+                      onChange={(e) => updateSetting('voice_id', e.target.value)}
+                      placeholder="ElevenLabs Voice ID"
+                    />
+                  </div>
+                  <div className="setting-item">
+                    <label className="setting-label">Model ID</label>
+                    <select
+                      className="setting-select"
+                      value={settings?.model_id || 'eleven_v3'}
+                      onChange={(e) => updateSetting('model_id', e.target.value)}
+                    >
+                      <option value="eleven_v3">eleven_v3 (Latest)</option>
+                      <option value="eleven_multilingual_v2">eleven_multilingual_v2</option>
+                      <option value="eleven_turbo_v2_5">eleven_turbo_v2_5</option>
+                      <option value="eleven_turbo_v2">eleven_turbo_v2</option>
+                      <option value="eleven_monolingual_v1">eleven_monolingual_v1</option>
+                    </select>
+                  </div>
+                  <div className="setting-item">
+                    <label className="setting-label">Output Format</label>
+                    <select
+                      className="setting-select"
+                      value={settings?.output_format || 'mp3_44100_128'}
+                      onChange={(e) => updateSetting('output_format', e.target.value)}
+                    >
+                      <option value="mp3_44100_128">MP3 44.1kHz 128kbps</option>
+                      <option value="mp3_44100_192">MP3 44.1kHz 192kbps</option>
+                      <option value="mp3_22050_32">MP3 22.05kHz 32kbps</option>
+                      <option value="pcm_16000">PCM 16kHz</option>
+                      <option value="pcm_22050">PCM 22.05kHz</option>
+                      <option value="pcm_24000">PCM 24kHz</option>
+                      <option value="pcm_44100">PCM 44.1kHz</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="settings-section">
+                <h3 className="settings-section-title">
+                  <Volume2 />
+                  Voice Settings
+                </h3>
+                <div className="settings-grid">
+                  <div className="setting-item">
+                    <label className="setting-label">
+                      Stability
+                      <span className="setting-hint">Controls consistency (0-1)</span>
+                    </label>
+                    <div className="setting-slider-group">
+                      <input
+                        type="range"
+                        className="setting-slider"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={settings?.voice_settings?.stability || 0.5}
+                        onChange={(e) => updateSetting('voice_settings.stability', parseFloat(e.target.value))}
+                      />
+                      <span className="setting-value">{settings?.voice_settings?.stability?.toFixed(2) || '0.50'}</span>
+                    </div>
+                  </div>
+
+                  <div className="setting-item">
+                    <label className="setting-label">
+                      Similarity Boost
+                      <span className="setting-hint">Voice match fidelity (0-1)</span>
+                    </label>
+                    <div className="setting-slider-group">
+                      <input
+                        type="range"
+                        className="setting-slider"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={settings?.voice_settings?.similarity_boost || 1}
+                        onChange={(e) => updateSetting('voice_settings.similarity_boost', parseFloat(e.target.value))}
+                      />
+                      <span className="setting-value">{settings?.voice_settings?.similarity_boost?.toFixed(2) || '1.00'}</span>
+                    </div>
+                  </div>
+
+                  <div className="setting-item">
+                    <label className="setting-label">
+                      Speed
+                      <span className="setting-hint">Playback pace (0.5-2.0)</span>
+                    </label>
+                    <div className="setting-slider-group">
+                      <input
+                        type="range"
+                        className="setting-slider"
+                        min="0.5"
+                        max="2"
+                        step="0.05"
+                        value={settings?.voice_settings?.speed || 1.2}
+                        onChange={(e) => updateSetting('voice_settings.speed', parseFloat(e.target.value))}
+                      />
+                      <span className="setting-value accent">{settings?.voice_settings?.speed?.toFixed(2) || '1.20'}</span>
+                    </div>
+                  </div>
+
+                  <div className="setting-item">
+                    <label className="setting-label">
+                      Style
+                      <span className="setting-hint">Expressive emphasis (0-1)</span>
+                    </label>
+                    <div className="setting-slider-group">
+                      <input
+                        type="range"
+                        className="setting-slider"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={settings?.voice_settings?.style || 0}
+                        onChange={(e) => updateSetting('voice_settings.style', parseFloat(e.target.value))}
+                      />
+                      <span className="setting-value">{settings?.voice_settings?.style?.toFixed(2) || '0.00'}</span>
+                    </div>
+                  </div>
+
+                  <div className="setting-item full">
+                    <label className="setting-label">
+                      Speaker Boost
+                      <span className="setting-hint">Extra speaker similarity (increases latency)</span>
+                    </label>
+                    <label className="setting-toggle">
+                      <input
+                        type="checkbox"
+                        checked={settings?.voice_settings?.use_speaker_boost || false}
+                        onChange={(e) => updateSetting('voice_settings.use_speaker_boost', e.target.checked)}
+                      />
+                      <span className="toggle-slider"></span>
+                      <span className="toggle-label">
+                        {settings?.voice_settings?.use_speaker_boost ? 'Enabled' : 'Disabled'}
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn secondary" onClick={handleReset} disabled={saving}>
+            <RotateCcw /> Reset to Defaults
+          </button>
+          <button className="btn primary" onClick={handleSave} disabled={saving || jsonError}>
+            {saving ? <Loader2 className="animate-spin" /> : <Save />}
+            {saving ? 'Saving...' : 'Save Settings'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Dashboard Page
 const DashboardPage = () => {
   const navigate = useNavigate();
