@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { BrowserRouter, Routes, Route, useNavigate, useParams, Link } from 'react-router-dom';
 import '@fontsource/inter/400.css';
 import '@fontsource/inter/500.css';
 import '@fontsource/inter/600.css';
@@ -26,7 +27,11 @@ import {
   Terminal,
   Copy,
   X,
-  Calendar
+  Calendar,
+  ArrowLeft,
+  ExternalLink,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || '';
@@ -63,7 +68,7 @@ const getJobRunTime = (job) => {
   return `${diffSecs}s`;
 };
 
-// Audio Player Component with scrubbing
+// Audio Player Component
 const AudioPlayer = ({ jobId }) => {
   const audioRef = useRef(null);
   const trackRef = useRef(null);
@@ -220,185 +225,358 @@ const MiniPlayButton = ({ jobId }) => {
   );
 };
 
-// Job Detail Modal
-const JobDetailModal = ({ job, onClose, onDownload, onDelete }) => {
+// Chunk Request Card Component
+const ChunkRequestCard = ({ chunk, index, isExpanded, onToggle }) => {
   const [copied, setCopied] = useState(false);
-
-  const isDone = job.status === 'completed';
-  const isFailed = job.status === 'failed';
-  const runTime = getJobRunTime(job);
-
-  const requestPayload = {
-    endpoint: 'POST /api/jobs',
-    body: {
-      name: job.name,
-      text: `[${job.text_length?.toLocaleString()} characters]`
-    }
-  };
-
+  
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const statusClass = chunk.status === 'completed' ? 'success' : chunk.status === 'failed' ? 'error' : 'pending';
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2 className="modal-title">{job.name}</h2>
-          <button className="modal-close" onClick={onClose}>
-            <X />
-          </button>
+    <div className="chunk-card">
+      <div className="chunk-header" onClick={onToggle}>
+        <div className="chunk-header-left">
+          {isExpanded ? <ChevronDown className="chunk-chevron" /> : <ChevronRight className="chunk-chevron" />}
+          <span className="chunk-index">Chunk {index + 1}</span>
+          <span className={`chunk-status ${statusClass}`}>
+            {chunk.status === 'completed' && <CheckCircle2 />}
+            {chunk.status === 'failed' && <XCircle />}
+            {chunk.status === 'pending' && <Clock />}
+            {chunk.status}
+          </span>
         </div>
-
-        <div className="modal-body">
-          {isDone && (
-            <div className="detail-section">
-              <div className="detail-section-header">
-                <Volume2 />
-                <span className="detail-section-title">Audio Player</span>
-              </div>
-              <AudioPlayer jobId={job.id} />
-            </div>
-          )}
-
-          <div className="detail-section">
-            <div className="detail-section-header">
-              <Info />
-              <span className="detail-section-title">Status</span>
-            </div>
-            <div className="detail-grid">
-              <div className="detail-item">
-                <div className="detail-item-label">Status</div>
-                <span className={`status-pill ${job.status}`}>{job.status}</span>
-              </div>
-              <div className="detail-item">
-                <div className="detail-item-label">Progress</div>
-                <div className="detail-item-value">{job.progress}%</div>
-              </div>
-              <div className="detail-item">
-                <div className="detail-item-label">Stage</div>
-                <div className="detail-item-value">{job.stage || '-'}</div>
-              </div>
-              <div className="detail-item">
-                <div className="detail-item-label">Chunks</div>
-                <div className="detail-item-value">{job.processed_chunks}/{job.chunk_count}</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="detail-section">
-            <div className="detail-section-header">
-              <BarChart3 />
-              <span className="detail-section-title">Metrics</span>
-            </div>
-            <div className="detail-grid">
-              <div className="detail-item">
-                <div className="detail-item-label">Text Length</div>
-                <div className="detail-item-value">{job.text_length?.toLocaleString()} chars</div>
-              </div>
-              <div className="detail-item">
-                <div className="detail-item-label">Audio Duration</div>
-                <div className="detail-item-value">{job.duration_seconds ? formatDuration(job.duration_seconds) : '-'}</div>
-              </div>
-              <div className="detail-item">
-                <div className="detail-item-label">Processing Time</div>
-                <div className="detail-item-value">{runTime || '-'}</div>
-              </div>
-              <div className="detail-item">
-                <div className="detail-item-label">Created</div>
-                <div className="detail-item-value">{formatDate(job.created_at)}</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="detail-section">
-            <div className="detail-section-header">
+        <div className="chunk-header-right">
+          <span className="chunk-meta">{chunk.request?.text_length?.toLocaleString()} chars</span>
+          {chunk.processed_at && <span className="chunk-meta">{formatDate(chunk.processed_at)}</span>}
+        </div>
+      </div>
+      
+      {isExpanded && (
+        <div className="chunk-body">
+          <div className="chunk-section">
+            <div className="chunk-section-header">
               <Terminal />
-              <span className="detail-section-title">Request</span>
-            </div>
-            <div className="code-block">
-              <button className="copy-btn" onClick={() => copyToClipboard(JSON.stringify(requestPayload, null, 2))}>
+              <span>API Request</span>
+              <button className="copy-btn-inline" onClick={() => copyToClipboard(JSON.stringify(chunk.request, null, 2))}>
                 {copied ? <CheckCircle2 /> : <Copy />}
               </button>
-              <pre>{JSON.stringify(requestPayload, null, 2)}</pre>
+            </div>
+            <div className="code-block">
+              <pre>{JSON.stringify({
+                endpoint: chunk.request?.endpoint,
+                voice_id: chunk.request?.voice_id,
+                model_id: chunk.request?.model_id,
+                output_format: chunk.request?.output_format,
+                voice_settings: chunk.request?.voice_settings
+              }, null, 2)}</pre>
             </div>
           </div>
-
-          {isFailed && job.error && (
-            <div className="detail-section error-section">
-              <div className="detail-section-header">
+          
+          <div className="chunk-section">
+            <div className="chunk-section-header">
+              <FileText />
+              <span>Text Content</span>
+              <button className="copy-btn-inline" onClick={() => copyToClipboard(chunk.request?.text || '')}>
+                {copied ? <CheckCircle2 /> : <Copy />}
+              </button>
+            </div>
+            <div className="text-block">
+              <pre>{chunk.request?.text}</pre>
+            </div>
+          </div>
+          
+          {chunk.error && (
+            <div className="chunk-section">
+              <div className="chunk-section-header error">
                 <AlertCircle />
-                <span className="detail-section-title">Error Log</span>
+                <span>Error</span>
               </div>
               <div className="error-block">
-                <pre>{job.error}</pre>
+                <pre>{chunk.error}</pre>
               </div>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+};
 
-          <div className="detail-section">
-            <div className="detail-section-header">
-              <FileText />
-              <span className="detail-section-title">Activity Log</span>
+// Job Details Page
+const JobDetailsPage = () => {
+  const { jobId } = useParams();
+  const navigate = useNavigate();
+  const [job, setJob] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [expandedChunks, setExpandedChunks] = useState(new Set());
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const fetchJobDetails = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/jobs/${jobId}/details`);
+        if (response.ok) {
+          const data = await response.json();
+          setJob(data);
+        } else {
+          toast.error('Failed to load job details');
+          navigate('/');
+        }
+      } catch (error) {
+        toast.error('Failed to load job details');
+        navigate('/');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchJobDetails();
+  }, [jobId, navigate]);
+
+  const toggleChunk = (index) => {
+    const newExpanded = new Set(expandedChunks);
+    if (newExpanded.has(index)) {
+      newExpanded.delete(index);
+    } else {
+      newExpanded.add(index);
+    }
+    setExpandedChunks(newExpanded);
+  };
+
+  const expandAll = () => {
+    if (job?.chunk_requests) {
+      setExpandedChunks(new Set(job.chunk_requests.map((_, i) => i)));
+    }
+  };
+
+  const collapseAll = () => {
+    setExpandedChunks(new Set());
+  };
+
+  const copyFullConfig = () => {
+    if (job?.tts_config) {
+      navigator.clipboard.writeText(JSON.stringify(job.tts_config, null, 2));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleDownload = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/jobs/${jobId}/download`);
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${job.name.replace(/[^a-zA-Z0-9_-]/g, '_')}.mp3`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        toast.success('Download started');
+      }
+    } catch (error) {
+      toast.error('Failed to download');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="app">
+        <div className="dashboard">
+          <div className="loading-state">
+            <Loader2 className="animate-spin" />
+            <span>Loading job details...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!job) {
+    return null;
+  }
+
+  const isDone = job.status === 'completed';
+  const runTime = getJobRunTime(job);
+  const statusClass = job.status === 'completed' ? 'success' : job.status === 'failed' ? 'error' : 'processing';
+
+  return (
+    <div className="app">
+      <div className="dashboard">
+        {/* Header */}
+        <header className="detail-header">
+          <div className="detail-header-left">
+            <button className="back-btn" onClick={() => navigate('/')}>
+              <ArrowLeft />
+            </button>
+            <div>
+              <h1 className="detail-title">{job.name}</h1>
+              <span className="detail-subtitle">Job ID: {job.id}</span>
             </div>
-            <div className="log-entries">
-              <div className="log-entry">
-                <span className="log-time">{formatDate(job.created_at)}</span>
-                <span className="log-msg">Job created with {job.chunk_count} chunks</span>
+          </div>
+          <div className="detail-header-right">
+            {isDone && (
+              <button className="btn primary" onClick={handleDownload}>
+                <Download /> Download MP3
+              </button>
+            )}
+          </div>
+        </header>
+
+        {/* Overview Section */}
+        <div className="detail-grid-2">
+          {/* Job Summary Card */}
+          <div className="card">
+            <div className="card-header">
+              <span className="card-header-icon"><Info /></span>
+              <span className="card-title">Job Summary</span>
+              <span className={`status-chip ${statusClass}`}>
+                {isDone && <CheckCircle2 />}
+                {job.status === 'failed' && <XCircle />}
+                {statusClass === 'processing' && <Loader2 className="animate-spin" />}
+                {job.status}
+              </span>
+            </div>
+            <div className="card-body">
+              <div className="summary-grid">
+                <div className="summary-item">
+                  <span className="summary-label">Text Length</span>
+                  <span className="summary-value">{job.text_length?.toLocaleString()} chars</span>
+                </div>
+                <div className="summary-item">
+                  <span className="summary-label">Chunks</span>
+                  <span className="summary-value">{job.processed_chunks} / {job.chunk_count}</span>
+                </div>
+                <div className="summary-item">
+                  <span className="summary-label">Audio Duration</span>
+                  <span className="summary-value">{job.duration_seconds ? formatDuration(job.duration_seconds) : '-'}</span>
+                </div>
+                <div className="summary-item">
+                  <span className="summary-label">Processing Time</span>
+                  <span className="summary-value">{runTime || '-'}</span>
+                </div>
+                <div className="summary-item">
+                  <span className="summary-label">Created</span>
+                  <span className="summary-value">{formatDate(job.created_at)}</span>
+                </div>
+                <div className="summary-item">
+                  <span className="summary-label">Progress</span>
+                  <span className="summary-value">{job.progress}%</span>
+                </div>
               </div>
-              {job.status !== 'queued' && (
-                <div className="log-entry">
-                  <span className="log-time">{formatDate(job.created_at)}</span>
-                  <span className="log-msg">Processing started</span>
-                </div>
-              )}
-              {job.processed_chunks > 0 && (
-                <div className="log-entry">
-                  <span className="log-time">{formatDate(job.updated_at)}</span>
-                  <span className="log-msg">Processed {job.processed_chunks} of {job.chunk_count} chunks</span>
-                </div>
-              )}
+              
               {isDone && (
-                <div className="log-entry success">
-                  <span className="log-time">{formatDate(job.updated_at)}</span>
-                  <span className="log-msg">Job completed — {formatDuration(job.duration_seconds)} audio generated</span>
+                <div className="summary-player">
+                  <AudioPlayer jobId={job.id} />
                 </div>
               )}
-              {isFailed && (
-                <div className="log-entry error">
-                  <span className="log-time">{formatDate(job.updated_at)}</span>
-                  <span className="log-msg">Job failed: {job.error?.substring(0, 100)}</span>
+              
+              {job.error && (
+                <div className="summary-error">
+                  <div className="error-block">
+                    <pre>{job.error}</pre>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* TTS Configuration Card */}
+          <div className="card">
+            <div className="card-header">
+              <span className="card-header-icon"><Terminal /></span>
+              <span className="card-title">TTS Configuration</span>
+              <button className="copy-btn-header" onClick={copyFullConfig}>
+                {copied ? <CheckCircle2 /> : <Copy />}
+              </button>
+            </div>
+            <div className="card-body">
+              {job.tts_config ? (
+                <div className="config-grid">
+                  <div className="config-item">
+                    <span className="config-label">API Provider</span>
+                    <span className="config-value">{job.tts_config.api}</span>
+                  </div>
+                  <div className="config-item">
+                    <span className="config-label">Model</span>
+                    <span className="config-value code">{job.tts_config.model_id}</span>
+                  </div>
+                  <div className="config-item">
+                    <span className="config-label">Voice ID</span>
+                    <span className="config-value code">{job.tts_config.voice_id}</span>
+                  </div>
+                  <div className="config-item">
+                    <span className="config-label">Output Format</span>
+                    <span className="config-value code">{job.tts_config.output_format}</span>
+                  </div>
+                  <div className="config-item full">
+                    <span className="config-label">Voice Settings</span>
+                    <div className="config-settings">
+                      <span className="setting-badge">stability: {job.tts_config.voice_settings?.stability}</span>
+                      <span className="setting-badge">similarity: {job.tts_config.voice_settings?.similarity_boost}</span>
+                      <span className="setting-badge accent">speed: {job.tts_config.voice_settings?.speed}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="empty-config">
+                  <span>Configuration data not available for this job</span>
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        <div className="modal-footer">
-          {isDone && (
-            <button className="btn primary" onClick={() => onDownload(job)}>
-              <Download /> Download MP3
-            </button>
-          )}
-          <button className="btn danger" onClick={() => { onDelete(job.id); onClose(); }}>
-            <Trash2 /> Delete
-          </button>
+        {/* Chunk Requests Section */}
+        <div className="card chunks-card">
+          <div className="card-header">
+            <span className="card-header-icon"><Layers /></span>
+            <span className="card-title">Chunk Requests</span>
+            <span className="card-badge">{job.chunk_requests?.length || 0}</span>
+            <div className="card-header-actions">
+              <button className="btn-text" onClick={expandAll}>Expand All</button>
+              <button className="btn-text" onClick={collapseAll}>Collapse All</button>
+            </div>
+          </div>
+          <div className="chunks-list">
+            {job.chunk_requests && job.chunk_requests.length > 0 ? (
+              job.chunk_requests.map((chunk, index) => (
+                <ChunkRequestCard
+                  key={index}
+                  chunk={chunk}
+                  index={index}
+                  isExpanded={expandedChunks.has(index)}
+                  onToggle={() => toggleChunk(index)}
+                />
+              ))
+            ) : (
+              <div className="empty-chunks">
+                <FileText />
+                <span>No chunk request data available for this job</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-// Main App
-function App() {
+// Dashboard Page
+const DashboardPage = () => {
+  const navigate = useNavigate();
   const [jobs, setJobs] = useState([]);
   const [isLoadingJobs, setIsLoadingJobs] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [name, setName] = useState('');
   const [text, setText] = useState('');
-  const [selectedJob, setSelectedJob] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(new Date());
 
   const completedJobs = jobs.filter(j => j.status === 'completed');
@@ -480,7 +658,8 @@ function App() {
     }
   };
 
-  const handleDelete = async (jobId) => {
+  const handleDelete = async (jobId, e) => {
+    e.stopPropagation();
     try {
       const response = await fetch(`${API_URL}/api/jobs/${jobId}`, { method: 'DELETE' });
       if (response.ok) {
@@ -516,17 +695,6 @@ function App() {
 
   return (
     <div className="app">
-      <Toaster position="top-right" toastOptions={{ style: { background: '#0F172A', color: '#fff', border: 'none' } }} />
-
-      {selectedJob && (
-        <JobDetailModal
-          job={selectedJob}
-          onClose={() => setSelectedJob(null)}
-          onDownload={handleDownload}
-          onDelete={handleDelete}
-        />
-      )}
-
       <div className="dashboard">
         {/* Header */}
         <header className="header">
@@ -684,7 +852,7 @@ function App() {
                       return (
                         <tr
                           key={job.id}
-                          onClick={() => setSelectedJob(job)}
+                          onClick={() => navigate(`/job/${job.id}`)}
                           data-testid={`jobs-table-row-${job.id}`}
                         >
                           <td>
@@ -722,12 +890,12 @@ function App() {
                               {isDone && (
                                 <>
                                   <MiniPlayButton jobId={job.id} />
-                                  <button className="action-btn download" onClick={() => handleDownload(job)} data-testid="job-download-button">
+                                  <button className="action-btn download" onClick={(e) => { e.stopPropagation(); handleDownload(job); }} data-testid="job-download-button">
                                     <Download />
                                   </button>
                                 </>
                               )}
-                              <button className="action-btn delete" onClick={() => handleDelete(job.id)} data-testid="job-delete-button">
+                              <button className="action-btn delete" onClick={(e) => handleDelete(job.id, e)} data-testid="job-delete-button">
                                 <Trash2 />
                               </button>
                             </div>
@@ -743,6 +911,19 @@ function App() {
         </div>
       </div>
     </div>
+  );
+};
+
+// Main App with Router
+function App() {
+  return (
+    <BrowserRouter>
+      <Toaster position="top-right" toastOptions={{ style: { background: '#0F172A', color: '#fff', border: 'none' } }} />
+      <Routes>
+        <Route path="/" element={<DashboardPage />} />
+        <Route path="/job/:jobId" element={<JobDetailsPage />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 
