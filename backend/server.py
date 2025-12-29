@@ -484,6 +484,30 @@ async def create_job(job_data: JobCreate, background_tasks: BackgroundTasks):
     if len(chunks) == 0:
         raise HTTPException(status_code=400, detail="Text is too short to process")
     
+    # Build chunk requests with full details
+    voice_settings = {
+        "stability": 0.5,
+        "similarity_boost": 1,
+        "speed": 1.2
+    }
+    
+    chunk_requests = []
+    for i, chunk_text in enumerate(chunks):
+        chunk_requests.append({
+            "chunk_index": i,
+            "request": {
+                "endpoint": "POST https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
+                "voice_id": ELEVENLABS_VOICE_ID,
+                "model_id": ELEVENLABS_MODEL,
+                "output_format": "mp3_44100_128",
+                "voice_settings": voice_settings,
+                "text": chunk_text,
+                "text_length": len(chunk_text)
+            },
+            "status": "pending",
+            "processed_at": None
+        })
+    
     # Create job document
     now = datetime.utcnow()
     job_doc = {
@@ -492,6 +516,14 @@ async def create_job(job_data: JobCreate, background_tasks: BackgroundTasks):
         "chunk_count": len(chunks),
         "processed_chunks": 0,
         "chunks": chunks,
+        "chunk_requests": chunk_requests,
+        "tts_config": {
+            "api": "ElevenLabs",
+            "voice_id": ELEVENLABS_VOICE_ID,
+            "model_id": ELEVENLABS_MODEL,
+            "output_format": "mp3_44100_128",
+            "voice_settings": voice_settings
+        },
         "status": "queued",
         "stage": "Waiting in queue...",
         "progress": 0,
