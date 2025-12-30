@@ -856,6 +856,7 @@ async def get_settings():
 async def update_settings(settings: TTSSettings):
     """Update TTS settings. Settings persist until changed again."""
     settings_dict = {
+        "mode": settings.mode,
         "voice_id": settings.voice_id,
         "model_id": settings.model_id,
         "output_format": settings.output_format,
@@ -865,6 +866,11 @@ async def update_settings(settings: TTSSettings):
             "speed": settings.voice_settings.speed,
             "style": settings.voice_settings.style,
             "use_speaker_boost": settings.voice_settings.use_speaker_boost
+        },
+        "studio_settings": {
+            "quality_preset": settings.studio_settings.quality_preset,
+            "volume_normalization": settings.studio_settings.volume_normalization,
+            "apply_text_normalization": settings.studio_settings.apply_text_normalization
         }
     }
     
