@@ -821,8 +821,11 @@ const SettingsModal = ({ isOpen, onClose, onSave }) => {
     setSettings(prev => {
       const newSettings = { ...prev };
       if (path.includes('.')) {
-        const [parent, child] = path.split('.');
-        newSettings[parent] = { ...newSettings[parent], [child]: value };
+        const parts = path.split('.');
+        if (parts.length === 2) {
+          const [parent, child] = parts;
+          newSettings[parent] = { ...newSettings[parent], [child]: value };
+        }
       } else {
         newSettings[path] = value;
       }
@@ -841,6 +844,8 @@ const SettingsModal = ({ isOpen, onClose, onSave }) => {
       setJsonError('Invalid JSON');
     }
   };
+
+  const currentMode = settings?.mode || 'chunking';
 
   if (!isOpen) return null;
 
@@ -889,6 +894,31 @@ const SettingsModal = ({ isOpen, onClose, onSave }) => {
             </div>
           ) : (
             <div className="settings-form">
+              {/* Mode Selector */}
+              <div className="mode-selector">
+                <button 
+                  className={`mode-tab ${currentMode === 'chunking' ? 'active' : ''}`}
+                  onClick={() => updateSetting('mode', 'chunking')}
+                >
+                  <Layers className="mode-icon" />
+                  <div className="mode-tab-content">
+                    <span className="mode-tab-title">Chunking</span>
+                    <span className="mode-tab-desc">Manual text chunking with per-chunk control</span>
+                  </div>
+                </button>
+                <button 
+                  className={`mode-tab ${currentMode === 'studio' ? 'active' : ''}`}
+                  onClick={() => updateSetting('mode', 'studio')}
+                >
+                  <Mic className="mode-icon" />
+                  <div className="mode-tab-content">
+                    <span className="mode-tab-title">Studio</span>
+                    <span className="mode-tab-desc">ElevenLabs Studio for long-form content</span>
+                  </div>
+                </button>
+              </div>
+
+              {/* Common Settings - Voice & Model */}
               <div className="settings-section">
                 <h3 className="settings-section-title">
                   <Terminal />
@@ -919,25 +949,43 @@ const SettingsModal = ({ isOpen, onClose, onSave }) => {
                       <option value="eleven_monolingual_v1">eleven_monolingual_v1</option>
                     </select>
                   </div>
-                  <div className="setting-item">
-                    <label className="setting-label">Output Format</label>
-                    <select
-                      className="setting-select"
-                      value={settings?.output_format || 'mp3_44100_128'}
-                      onChange={(e) => updateSetting('output_format', e.target.value)}
-                    >
-                      <option value="mp3_44100_128">MP3 44.1kHz 128kbps</option>
-                      <option value="mp3_44100_192">MP3 44.1kHz 192kbps</option>
-                      <option value="mp3_22050_32">MP3 22.05kHz 32kbps</option>
-                      <option value="pcm_16000">PCM 16kHz</option>
-                      <option value="pcm_22050">PCM 22.05kHz</option>
-                      <option value="pcm_24000">PCM 24kHz</option>
-                      <option value="pcm_44100">PCM 44.1kHz</option>
-                    </select>
-                  </div>
+                  {currentMode === 'chunking' && (
+                    <div className="setting-item">
+                      <label className="setting-label">Output Format</label>
+                      <select
+                        className="setting-select"
+                        value={settings?.output_format || 'mp3_44100_128'}
+                        onChange={(e) => updateSetting('output_format', e.target.value)}
+                      >
+                        <option value="mp3_44100_128">MP3 44.1kHz 128kbps</option>
+                        <option value="mp3_44100_192">MP3 44.1kHz 192kbps</option>
+                        <option value="mp3_22050_32">MP3 22.05kHz 32kbps</option>
+                        <option value="pcm_16000">PCM 16kHz</option>
+                        <option value="pcm_22050">PCM 22.05kHz</option>
+                        <option value="pcm_24000">PCM 24kHz</option>
+                        <option value="pcm_44100">PCM 44.1kHz</option>
+                      </select>
+                    </div>
+                  )}
+                  {currentMode === 'studio' && (
+                    <div className="setting-item">
+                      <label className="setting-label">Quality Preset</label>
+                      <select
+                        className="setting-select"
+                        value={settings?.studio_settings?.quality_preset || 'standard'}
+                        onChange={(e) => updateSetting('studio_settings.quality_preset', e.target.value)}
+                      >
+                        <option value="standard">Standard</option>
+                        <option value="high">High</option>
+                        <option value="ultra">Ultra</option>
+                        <option value="ultra_lossless">Ultra Lossless</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
 
+              {/* Voice Settings - Common to both modes */}
               <div className="settings-section">
                 <h3 className="settings-section-title">
                   <Volume2 />
@@ -1039,6 +1087,49 @@ const SettingsModal = ({ isOpen, onClose, onSave }) => {
                   </div>
                 </div>
               </div>
+
+              {/* Studio-specific Settings */}
+              {currentMode === 'studio' && (
+                <div className="settings-section">
+                  <h3 className="settings-section-title">
+                    <Mic />
+                    Studio Settings
+                  </h3>
+                  <div className="settings-grid">
+                    <div className="setting-item">
+                      <label className="setting-label">
+                        Volume Normalization
+                        <span className="setting-hint">Audiobook-compliant loudness</span>
+                      </label>
+                      <label className="setting-toggle">
+                        <input
+                          type="checkbox"
+                          checked={settings?.studio_settings?.volume_normalization || false}
+                          onChange={(e) => updateSetting('studio_settings.volume_normalization', e.target.checked)}
+                        />
+                        <span className="toggle-slider"></span>
+                        <span className="toggle-label">
+                          {settings?.studio_settings?.volume_normalization ? 'Enabled' : 'Disabled'}
+                        </span>
+                      </label>
+                    </div>
+
+                    <div className="setting-item">
+                      <label className="setting-label">Text Normalization</label>
+                      <select
+                        className="setting-select"
+                        value={settings?.studio_settings?.apply_text_normalization || 'auto'}
+                        onChange={(e) => updateSetting('studio_settings.apply_text_normalization', e.target.value)}
+                      >
+                        <option value="auto">Auto</option>
+                        <option value="on">On</option>
+                        <option value="off">Off</option>
+                        <option value="apply_english">Apply English</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
