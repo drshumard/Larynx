@@ -44,7 +44,9 @@ STORAGE_DIR = "/app/backend/storage"
 print(f"ElevenLabs API Key loaded: {'Yes' if ELEVENLABS_API_KEY else 'No'}")
 
 # Constants
-MAX_CHUNK_SIZE = 4500  # ElevenLabs eleven_v3 max is 5000 chars, using 4500 for safety
+DEFAULT_CHUNK_SIZE = 4500  # Default chunk size for chunking mode
+MIN_CHUNK_SIZE = 500
+MAX_CHUNK_SIZE = 20000
 
 # Ensure storage directory exists
 os.makedirs(STORAGE_DIR, exist_ok=True)
@@ -118,6 +120,7 @@ class TTSSettings(BaseModel):
     voice_id: str = Field(default="LNHBM9NjjOl44Efsdmtl", description="ElevenLabs voice ID")
     model_id: str = Field(default="eleven_v3", description="ElevenLabs model ID")
     output_format: str = Field(default="mp3_44100_128", description="Audio output format (chunking mode)")
+    chunk_size: int = Field(default=DEFAULT_CHUNK_SIZE, ge=MIN_CHUNK_SIZE, le=MAX_CHUNK_SIZE, description="Chunk size in characters for chunking mode (500-20000)")
     voice_settings: VoiceSettings = Field(default_factory=VoiceSettings)
     studio_settings: StudioSettings = Field(default_factory=StudioSettings)
 
@@ -127,6 +130,7 @@ class TTSSettingsUpdate(BaseModel):
     voice_id: Optional[str] = None
     model_id: Optional[str] = None
     output_format: Optional[str] = None
+    chunk_size: Optional[int] = None
     voice_settings: Optional[VoiceSettings] = None
     studio_settings: Optional[StudioSettings] = None
 
@@ -137,6 +141,7 @@ DEFAULT_TTS_SETTINGS = {
     "voice_id": ELEVENLABS_VOICE_ID,
     "model_id": ELEVENLABS_MODEL,
     "output_format": "mp3_44100_128",
+    "chunk_size": DEFAULT_CHUNK_SIZE,
     "voice_settings": {
         "stability": 0.5,
         "similarity_boost": 1,
@@ -181,7 +186,7 @@ async def get_tts_settings():
     return DEFAULT_TTS_SETTINGS.copy()
 
 
-def split_text_into_chunks(text: str, max_chars: int = MAX_CHUNK_SIZE) -> list[str]:
+def split_text_into_chunks(text: str, max_chars: int = DEFAULT_CHUNK_SIZE) -> list[str]:
     """
     Split text at sentence boundaries while keeping chunks under max_chars.
     Sentence boundaries: . ! ? followed by space or newline
@@ -860,6 +865,7 @@ async def update_settings(settings: TTSSettings):
         "voice_id": settings.voice_id,
         "model_id": settings.model_id,
         "output_format": settings.output_format,
+        "chunk_size": settings.chunk_size,
         "voice_settings": {
             "stability": settings.voice_settings.stability,
             "similarity_boost": settings.voice_settings.similarity_boost,
@@ -898,6 +904,8 @@ async def patch_settings(updates: TTSSettingsUpdate):
         current_settings["model_id"] = updates.model_id
     if updates.output_format is not None:
         current_settings["output_format"] = updates.output_format
+    if updates.chunk_size is not None:
+        current_settings["chunk_size"] = updates.chunk_size
     if updates.voice_settings is not None:
         vs = updates.voice_settings
         current_vs = current_settings.get("voice_settings", {})
@@ -944,7 +952,8 @@ async def create_job(job_data: JobCreate, background_tasks: BackgroundTasks):
     # For chunking mode, split text into chunks
     # For studio mode, we don't chunk - Studio handles it
     if mode == "chunking":
-        chunks = split_text_into_chunks(job_data.text)
+        chunk_size = tts_settings.get("chunk_size", DEFAULT_CHUNK_SIZE)
+        chunks = split_text_into_chunks(job_data.text, max_chars=chunk_size)
         if len(chunks) == 0:
             raise HTTPException(status_code=400, detail="Text is too short to process")
         chunk_count = len(chunks)
@@ -1003,6 +1012,7 @@ async def create_job(job_data: JobCreate, background_tasks: BackgroundTasks):
             "voice_id": tts_settings.get("voice_id", ELEVENLABS_VOICE_ID),
             "model_id": tts_settings.get("model_id", ELEVENLABS_MODEL),
             "output_format": tts_settings.get("output_format", "mp3_44100_128"),
+            "chunk_size": tts_settings.get("chunk_size", DEFAULT_CHUNK_SIZE) if mode == "chunking" else None,
             "voice_settings": voice_settings,
             "studio_settings": studio_settings
         },
