@@ -2046,3 +2046,74 @@ body {
   width: 14px;
   height: 14px;
 }
+
+/* ==================== MODE SELECTOR ==================== */
+.mode-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.mode-tab {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  background: var(--bg-primary);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.mode-tab:hover {
+  border-color: var(--text-muted);
+}
+
+.mode-tab.active {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.mode-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.mode-tab.active .mode-icon {
+  color: var(--accent);
+}
+
+.mode-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mode-tab-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.mode-tab-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.mode-tab.active .mode-tab-title {
+  color: var(--accent);
+}
+
+/* Responsive mode selector */
+@media (max-width: 500px) {
+  .mode-selector {
+    grid-template-columns: 1fr;
+  }
+}
