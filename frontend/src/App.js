@@ -650,6 +650,11 @@ const JobDetailsPage = () => {
             <div className="card-header">
               <span className="card-header-icon"><Terminal /></span>
               <span className="card-title">TTS Configuration</span>
+              {job.tts_config?.mode && (
+                <span className={`mode-badge ${job.tts_config.mode}`}>
+                  {job.tts_config.mode === 'studio' ? 'Studio' : 'Chunking'}
+                </span>
+              )}
               <button className="copy-btn-header" onClick={copyFullConfig}>
                 {copied ? <CheckCircle2 /> : <Copy />}
               </button>
@@ -662,6 +667,10 @@ const JobDetailsPage = () => {
                     <span className="config-value">{job.tts_config.api}</span>
                   </div>
                   <div className="config-item">
+                    <span className="config-label">Mode</span>
+                    <span className="config-value">{job.tts_config.mode === 'studio' ? 'Studio' : 'Chunking'}</span>
+                  </div>
+                  <div className="config-item">
                     <span className="config-label">Model</span>
                     <span className="config-value code">{job.tts_config.model_id}</span>
                   </div>
@@ -669,10 +678,18 @@ const JobDetailsPage = () => {
                     <span className="config-label">Voice ID</span>
                     <span className="config-value code">{job.tts_config.voice_id}</span>
                   </div>
-                  <div className="config-item">
-                    <span className="config-label">Output Format</span>
-                    <span className="config-value code">{job.tts_config.output_format}</span>
-                  </div>
+                  {job.tts_config.mode !== 'studio' && (
+                    <div className="config-item">
+                      <span className="config-label">Output Format</span>
+                      <span className="config-value code">{job.tts_config.output_format}</span>
+                    </div>
+                  )}
+                  {job.tts_config.mode === 'studio' && job.tts_config.studio_settings && (
+                    <div className="config-item">
+                      <span className="config-label">Quality Preset</span>
+                      <span className="config-value code">{job.tts_config.studio_settings.quality_preset}</span>
+                    </div>
+                  )}
                   <div className="config-item full">
                     <span className="config-label">Voice Settings</span>
                     <div className="config-settings">
