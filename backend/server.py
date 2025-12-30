@@ -107,22 +107,33 @@ class VoiceSettings(BaseModel):
     use_speaker_boost: bool = Field(False, description="Extra speaker similarity")
 
 
+class StudioSettings(BaseModel):
+    quality_preset: str = Field(default="standard", description="Output quality: standard/high/ultra/ultra_lossless")
+    volume_normalization: bool = Field(default=False, description="Audiobook volume normalization")
+    apply_text_normalization: str = Field(default="auto", description="Text normalization: auto/on/off/apply_english")
+
+
 class TTSSettings(BaseModel):
+    mode: str = Field(default="chunking", description="TTS mode: chunking or studio")
     voice_id: str = Field(default="LNHBM9NjjOl44Efsdmtl", description="ElevenLabs voice ID")
     model_id: str = Field(default="eleven_v3", description="ElevenLabs model ID")
-    output_format: str = Field(default="mp3_44100_128", description="Audio output format")
+    output_format: str = Field(default="mp3_44100_128", description="Audio output format (chunking mode)")
     voice_settings: VoiceSettings = Field(default_factory=VoiceSettings)
+    studio_settings: StudioSettings = Field(default_factory=StudioSettings)
 
 
 class TTSSettingsUpdate(BaseModel):
+    mode: Optional[str] = None
     voice_id: Optional[str] = None
     model_id: Optional[str] = None
     output_format: Optional[str] = None
     voice_settings: Optional[VoiceSettings] = None
+    studio_settings: Optional[StudioSettings] = None
 
 
 # Default TTS settings
 DEFAULT_TTS_SETTINGS = {
+    "mode": "chunking",
     "voice_id": ELEVENLABS_VOICE_ID,
     "model_id": ELEVENLABS_MODEL,
     "output_format": "mp3_44100_128",
@@ -132,6 +143,11 @@ DEFAULT_TTS_SETTINGS = {
         "speed": 1.2,
         "style": 0,
         "use_speaker_boost": False
+    },
+    "studio_settings": {
+        "quality_preset": "standard",
+        "volume_normalization": False,
+        "apply_text_normalization": "auto"
     }
 }
 
