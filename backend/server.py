@@ -395,6 +395,277 @@ async def send_webhook(job_id: str, name: str, audio_url: str, status: str, text
         return False
 
 
+async def process_studio_job(job_id: str):
+    """Background task to process TTS job using ElevenLabs Studio API."""
+    try:
+        # Get job from database
+        job = await db.jobs.find_one({"_id": ObjectId(job_id)})
+        if not job:
+            print(f"Job {job_id} not found")
+            return
+        
+        # Get TTS settings from job
+        tts_config = job.get("tts_config", DEFAULT_TTS_SETTINGS)
+        voice_settings = tts_config.get("voice_settings", {})
+        studio_settings = tts_config.get("studio_settings", {})
+        
+        # Update status
+        await db.jobs.update_one(
+            {"_id": ObjectId(job_id)},
+            {"$set": {"status": "processing", "stage": "Creating Studio project...", "progress": 10, "updated_at": datetime.utcnow()}}
+        )
+        
+        # Prepare the content JSON for Studio API
+        # Split text into paragraphs for better structure
+        text = job.get("original_text", "")
+        paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+        if not paragraphs:
+            paragraphs = [text]
+        
+        # Build blocks with TTS nodes
+        voice_id = tts_config.get("voice_id", ELEVENLABS_VOICE_ID)
+        blocks = []
+        for para in paragraphs:
+            if para:
+                blocks.append({
+                    "sub_type": "p",
+                    "nodes": [{
+                        "voice_id": voice_id,
+                        "text": para,
+                        "type": "tts_node"
+                    }]
+                })
+        
+        # Create content JSON with single chapter
+        content_json = [{
+            "name": job.get("name", "Chapter 1"),
+            "blocks": blocks
+        }]
+        
+        # Build voice settings override
+        voice_settings_override = [{
+            "voice_id": voice_id,
+            "stability": voice_settings.get("stability", 0.5),
+            "similarity_boost": voice_settings.get("similarity_boost", 1),
+            "style": voice_settings.get("style", 0),
+            "speed": voice_settings.get("speed", 1.2),
+            "use_speaker_boost": voice_settings.get("use_speaker_boost", False)
+        }]
+        
+        # Prepare form data for Studio API
+        form_data = {
+            "name": job.get("name", "TTS Project"),
+            "default_paragraph_voice_id": voice_id,
+            "default_model_id": tts_config.get("model_id", ELEVENLABS_MODEL),
+            "quality_preset": studio_settings.get("quality_preset", "standard"),
+            "volume_normalization": str(studio_settings.get("volume_normalization", False)).lower(),
+            "apply_text_normalization": studio_settings.get("apply_text_normalization", "auto"),
+            "auto_convert": "true",
+            "from_content_json": str(content_json).replace("'", '"')
+        }
+        
+        # Add voice settings as JSON strings
+        for vs in voice_settings_override:
+            form_data["voice_settings"] = str(vs).replace("'", '"').replace("True", "true").replace("False", "false")
+        
+        headers = {
+            "xi-api-key": ELEVENLABS_API_KEY
+        }
+        
+        print(f"Creating Studio project for job {job_id}")
+        
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            # Create Studio project with auto_convert
+            response = await client.post(
+                "https://api.elevenlabs.io/v1/studio/projects",
+                data=form_data,
+                headers=headers
+            )
+            
+            if response.status_code != 200:
+                error_msg = f"Studio API error: {response.status_code} - {response.text}"
+                print(error_msg)
+                await db.jobs.update_one(
+                    {"_id": ObjectId(job_id)},
+                    {"$set": {"status": "failed", "error": error_msg, "updated_at": datetime.utcnow()}}
+                )
+                return
+            
+            project_data = response.json()
+            project_id = project_data.get("project", {}).get("project_id")
+            
+            if not project_id:
+                error_msg = "Failed to get project_id from Studio API response"
+                print(error_msg)
+                await db.jobs.update_one(
+                    {"_id": ObjectId(job_id)},
+                    {"$set": {"status": "failed", "error": error_msg, "updated_at": datetime.utcnow()}}
+                )
+                return
+            
+            print(f"Studio project created: {project_id}")
+            
+            # Store project_id in job
+            await db.jobs.update_one(
+                {"_id": ObjectId(job_id)},
+                {"$set": {
+                    "studio_project_id": project_id,
+                    "stage": "Converting audio...",
+                    "progress": 30,
+                    "updated_at": datetime.utcnow()
+                }}
+            )
+            
+            # Poll for project conversion status
+            max_attempts = 120  # 10 minutes max
+            attempt = 0
+            project_snapshot_id = None
+            
+            while attempt < max_attempts:
+                await asyncio.sleep(5)  # Wait 5 seconds between polls
+                attempt += 1
+                
+                # Get project status
+                status_response = await client.get(
+                    f"https://api.elevenlabs.io/v1/studio/projects/{project_id}",
+                    headers=headers
+                )
+                
+                if status_response.status_code != 200:
+                    continue
+                
+                project_status = status_response.json()
+                state = project_status.get("state")
+                
+                # Update progress
+                progress = min(30 + (attempt * 50 // max_attempts), 80)
+                await db.jobs.update_one(
+                    {"_id": ObjectId(job_id)},
+                    {"$set": {
+                        "stage": f"Converting audio... ({state})",
+                        "progress": progress,
+                        "updated_at": datetime.utcnow()
+                    }}
+                )
+                
+                if state == "ready":
+                    # Get the latest snapshot
+                    snapshots_response = await client.get(
+                        f"https://api.elevenlabs.io/v1/studio/projects/{project_id}/snapshots",
+                        headers=headers
+                    )
+                    
+                    if snapshots_response.status_code == 200:
+                        snapshots_data = snapshots_response.json()
+                        snapshots = snapshots_data.get("snapshots", [])
+                        if snapshots:
+                            project_snapshot_id = snapshots[0].get("project_snapshot_id")
+                            break
+                
+                elif state == "failed":
+                    error_msg = f"Studio conversion failed: {project_status.get('error', 'Unknown error')}"
+                    print(error_msg)
+                    await db.jobs.update_one(
+                        {"_id": ObjectId(job_id)},
+                        {"$set": {"status": "failed", "error": error_msg, "updated_at": datetime.utcnow()}}
+                    )
+                    return
+            
+            if not project_snapshot_id:
+                error_msg = "Timeout waiting for Studio conversion"
+                print(error_msg)
+                await db.jobs.update_one(
+                    {"_id": ObjectId(job_id)},
+                    {"$set": {"status": "failed", "error": error_msg, "updated_at": datetime.utcnow()}}
+                )
+                return
+            
+            print(f"Studio conversion complete, snapshot: {project_snapshot_id}")
+            
+            # Update status
+            await db.jobs.update_one(
+                {"_id": ObjectId(job_id)},
+                {"$set": {
+                    "studio_snapshot_id": project_snapshot_id,
+                    "stage": "Downloading audio...",
+                    "progress": 85,
+                    "updated_at": datetime.utcnow()
+                }}
+            )
+            
+            # Download the audio
+            audio_response = await client.get(
+                f"https://api.elevenlabs.io/v1/studio/projects/{project_id}/snapshots/{project_snapshot_id}/stream",
+                headers=headers
+            )
+            
+            if audio_response.status_code != 200:
+                error_msg = f"Failed to download audio: {audio_response.status_code}"
+                print(error_msg)
+                await db.jobs.update_one(
+                    {"_id": ObjectId(job_id)},
+                    {"$set": {"status": "failed", "error": error_msg, "updated_at": datetime.utcnow()}}
+                )
+                return
+            
+            # Save audio file
+            audio_path = os.path.join(STORAGE_DIR, f"{job_id}.mp3")
+            with open(audio_path, "wb") as f:
+                f.write(audio_response.content)
+            
+            # Get audio duration using ffprobe
+            duration = None
+            try:
+                result = subprocess.run(
+                    [FFMPEG_PATH.replace('ffmpeg', 'ffprobe'), '-v', 'quiet', '-show_entries', 
+                     'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', audio_path],
+                    capture_output=True, text=True
+                )
+                if result.returncode == 0:
+                    duration = float(result.stdout.strip())
+            except:
+                pass
+            
+            # Update job as completed
+            audio_url = f"/api/jobs/{job_id}/download"
+            await db.jobs.update_one(
+                {"_id": ObjectId(job_id)},
+                {"$set": {
+                    "status": "completed",
+                    "stage": "Complete",
+                    "progress": 100,
+                    "processed_chunks": 1,
+                    "audio_path": audio_path,
+                    "audio_url": audio_url,
+                    "duration_seconds": duration,
+                    "updated_at": datetime.utcnow()
+                }}
+            )
+            
+            print(f"Studio job {job_id} completed. Duration: {duration}s")
+            
+            # Send webhook notification
+            if WEBHOOK_URL:
+                await send_webhook(
+                    job_id=job_id,
+                    name=job.get("name"),
+                    audio_url=audio_url,
+                    status="completed",
+                    text_length=len(text),
+                    chunk_count=1
+                )
+    
+    except Exception as e:
+        error_msg = f"Studio processing error: {str(e)}"
+        print(error_msg)
+        import traceback
+        traceback.print_exc()
+        await db.jobs.update_one(
+            {"_id": ObjectId(job_id)},
+            {"$set": {"status": "failed", "error": error_msg, "updated_at": datetime.utcnow()}}
+        )
+
+
 async def process_tts_job(job_id: str):
     """Background task to process TTS job."""
     try:
