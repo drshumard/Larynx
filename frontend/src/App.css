@@ -2117,3 +2117,25 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ==================== MODE BADGE ==================== */
+.mode-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+  margin-left: 8px;
+}
+
+.mode-badge.chunking {
+  background: var(--processing-bg);
+  color: var(--processing);
+}
+
+.mode-badge.studio {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
