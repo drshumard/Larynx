@@ -935,48 +935,76 @@ async def reset_settings():
 @app.post("/api/jobs", response_model=JobResponse)
 async def create_job(job_data: JobCreate, background_tasks: BackgroundTasks):
     """Create a new TTS job."""
-    # Chunk the text
-    chunks = split_text_into_chunks(job_data.text)
-    
-    if len(chunks) == 0:
-        raise HTTPException(status_code=400, detail="Text is too short to process")
-    
     # Get current TTS settings
     tts_settings = await get_tts_settings()
+    mode = tts_settings.get("mode", "chunking")
     voice_settings = tts_settings.get("voice_settings", DEFAULT_TTS_SETTINGS["voice_settings"])
+    studio_settings = tts_settings.get("studio_settings", DEFAULT_TTS_SETTINGS["studio_settings"])
+    
+    # For chunking mode, split text into chunks
+    # For studio mode, we don't chunk - Studio handles it
+    if mode == "chunking":
+        chunks = split_text_into_chunks(job_data.text)
+        if len(chunks) == 0:
+            raise HTTPException(status_code=400, detail="Text is too short to process")
+        chunk_count = len(chunks)
+    else:
+        # Studio mode - single "chunk" containing all text
+        chunks = [job_data.text]
+        chunk_count = 1
     
     chunk_requests = []
     for i, chunk_text in enumerate(chunks):
-        chunk_requests.append({
-            "chunk_index": i,
-            "request": {
-                "endpoint": "POST https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
-                "voice_id": tts_settings.get("voice_id", ELEVENLABS_VOICE_ID),
-                "model_id": tts_settings.get("model_id", ELEVENLABS_MODEL),
-                "output_format": tts_settings.get("output_format", "mp3_44100_128"),
-                "voice_settings": voice_settings,
-                "text": chunk_text,
-                "text_length": len(chunk_text)
-            },
-            "status": "pending",
-            "processed_at": None
-        })
+        if mode == "chunking":
+            chunk_requests.append({
+                "chunk_index": i,
+                "request": {
+                    "endpoint": "POST https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
+                    "voice_id": tts_settings.get("voice_id", ELEVENLABS_VOICE_ID),
+                    "model_id": tts_settings.get("model_id", ELEVENLABS_MODEL),
+                    "output_format": tts_settings.get("output_format", "mp3_44100_128"),
+                    "voice_settings": voice_settings,
+                    "text": chunk_text,
+                    "text_length": len(chunk_text)
+                },
+                "status": "pending",
+                "processed_at": None
+            })
+        else:
+            # Studio mode request structure
+            chunk_requests.append({
+                "chunk_index": i,
+                "request": {
+                    "endpoint": "POST https://api.elevenlabs.io/v1/studio/projects",
+                    "voice_id": tts_settings.get("voice_id", ELEVENLABS_VOICE_ID),
+                    "model_id": tts_settings.get("model_id", ELEVENLABS_MODEL),
+                    "quality_preset": studio_settings.get("quality_preset", "standard"),
+                    "voice_settings": voice_settings,
+                    "studio_settings": studio_settings,
+                    "text_length": len(chunk_text)
+                },
+                "status": "pending",
+                "processed_at": None
+            })
     
     # Create job document
     now = datetime.utcnow()
     job_doc = {
         "name": job_data.name,
         "text_length": len(job_data.text),
-        "chunk_count": len(chunks),
+        "original_text": job_data.text,  # Store original text for Studio mode
+        "chunk_count": chunk_count,
         "processed_chunks": 0,
         "chunks": chunks,
         "chunk_requests": chunk_requests,
         "tts_config": {
             "api": "ElevenLabs",
+            "mode": mode,
             "voice_id": tts_settings.get("voice_id", ELEVENLABS_VOICE_ID),
             "model_id": tts_settings.get("model_id", ELEVENLABS_MODEL),
             "output_format": tts_settings.get("output_format", "mp3_44100_128"),
-            "voice_settings": voice_settings
+            "voice_settings": voice_settings,
+            "studio_settings": studio_settings
         },
         "status": "queued",
         "stage": "Waiting in queue...",
@@ -993,8 +1021,11 @@ async def create_job(job_data: JobCreate, background_tasks: BackgroundTasks):
     result = await db.jobs.insert_one(job_doc)
     job_id = str(result.inserted_id)
     
-    # Start background processing
-    background_tasks.add_task(process_tts_job, job_id)
+    # Start background processing based on mode
+    if mode == "studio":
+        background_tasks.add_task(process_studio_job, job_id)
+    else:
+        background_tasks.add_task(process_tts_job, job_id)
     
     # Return response
     job_doc["_id"] = result.inserted_id
