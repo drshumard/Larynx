@@ -1,90 +1,274 @@
-<analysis>An analysis of the user's request and the agent's actions has been completed.
-
-**original_problem_statement:**
-The user wants to build a full-stack application named Larynx TTS.
+<analysis>**original_problem_statement:**
+The user wants to build a full-stack application named Larynx TTS. The core functionality involves converting long text into a single MP3 file using the ElevenLabs TTS API. The application should feature a sophisticated frontend for job submission and a dashboard for monitoring job progress and details. The project has evolved through several iterations, with the user providing detailed feedback on UI/UX, moving from a glassmorphism style to a professional enterprise SaaS aesthetic.
 
 **PRODUCT REQUIREMENTS:**
-1.  **Core Functionality:**
-    *   Accept a long text (minimum 20,000 words) and a name via a POST request or a frontend UI.
-    *   Chunk the text at sentence boundaries.
-    *   Use the ElevenLabs TTS API (specifically model ) to convert each text chunk to audio. The v3 model has a 5,000 character limit per request.
-    *   Concatenate the resulting audio chunks into a single MP3 file in the correct order.
-    *   Store the job details and a link to the final MP3 in a MongoDB database.
-2.  **Frontend UI:**
-    *   A sophisticated, visually appealing UI for submitting the name and text.
-    *   A dashboard to display all submitted jobs.
-    *   The UI should display the real-time progress of each job (e.g., status, progress bar, processing stage).
-    *   The design should be inspired by user-provided reference images, featuring a glassmorphism/translucent style, broad cards, a warm gradient background, and good use of space.
-    *   Jobs should be displayed in a table format with fixed-width columns and text wrapping to prevent layout breaks.
-    *   Completed jobs should have Download and Play buttons.
-    *   Clicking on a job should open a modal with detailed information, including request data, error logs (if any), and an embedded audio player for completed jobs.
-3.  **Backend API:**
-    *   Provide API endpoints to create jobs, list all jobs, get a specific job's status, and download the final audio file.
-    *   An endpoint to delete jobs.
-4.  **Integrations & Configuration:**
-    *   Use the provided ElevenLabs API key () and voice ID ().
-    *   The TTS generation speed should be set to  and similarity boost to .
-    *   When a job is complete, send a webhook with the job details and audio download URL to .
+1.  **Core Functionality:** Accept text and generate a single audio file.
+2.  **Dual-Mode TTS:** The application must support two methods for audio generation, selectable via a universal setting:
+    *   **Chunking Mode:** Manually split long text, process each chunk via the ElevenLabs TTS API (), and concatenate the resulting audio files.
+    *   **Studio Mode:** Use the ElevenLabs Studio API () to process long-form content in a single project-based workflow, which handles chunking automatically.
+3.  **Frontend UI:**
+    *   An enterprise-grade SaaS interface for submitting and monitoring jobs.
+    *   A dashboard to display all jobs with their status.
+    *   A dedicated job details page for each job, accessible via SPA routing.
+    *   The details page must show the full configuration used for the job, including the TTS mode.
+    *   For jobs created in Chunking mode, the page must display the full API request for each chunk and provide an individual audio player for each chunk's output.
+4.  **Persistent Settings:**
+    *   A settings modal that allows the user to configure TTS parameters for both Chunking and Studio modes.
+    *   These settings must be saved persistently in the database and applied to all subsequent jobs.
 
 **User's preferred language**: English
 
 **what currently exists?**
-A full-stack FARM (FastAPI, React, MongoDB) application is in place. The backend correctly chunks text, generates speech using the ElevenLabs v3 model with the specified settings, and merges the audio files. A critical and recurring  error has been permanently resolved by replacing the  library with a custom function that uses Python's  module to directly call a bundled  binary, removing external dependencies.
+A full-stack FARM (FastAPI, React, MongoDB) application is in place. The backend supports two distinct TTS generation modes: the original Chunking mode and the newly implemented Studio mode. The active mode is determined by a persistent setting in the MongoDB database.
 
-The frontend features a multi-column layout with glassmorphism styling. It displays job statistics, a form to create new jobs, and a list of all jobs. Clicking on a job opens a modal with detailed information, including status, metrics, and error logs for failed jobs.
+The frontend is a React Single-Page Application (SPA) with an enterprise-grade SaaS design. It features a main dashboard for job overview and a separate, route-based page for detailed job inspection. A comprehensive settings modal allows the user to switch between Chunking and Studio modes and configure all relevant parameters for each.
 
 **Last working item**:
-The agent's last action was to address user feedback regarding the UI layout and features. The user reported that the job table columns were misaligned, and requested the addition of an inline Play button and an audio player within the detail modal.
+The agent was implementing the Studio Mode feature as an alternative to the existing Chunking workflow.
 
-- **Last item agent was working:** Implementing UI fixes: aligning table columns, adding text wrapping, and incorporating a Play button and an audio player. The agent has already written new versions of  and  to implement these changes.
+- **Last item agent was working:** The agent has completed the implementation of the Studio Mode. This included backend changes to add a new processing pipeline using the ElevenLabs Studio API and frontend updates to the settings modal to include a Studio tab with the relevant configuration options. The agent successfully updated the settings to use Studio mode.
 - **Status:** IN PROGRESS
 - **Agent Testing Done:** N
-- **Which testing method agent to use?** screenshot tool. The agent needs to first take a screenshot to visually verify if the new code has fixed the layout issues and added the new audio player elements.
+- **Which testing method agent to use?** manual testing. The agent needs to create a new job while Studio mode is active and verify the entire end-to-end process. This involves checking backend logs, monitoring job status in the database/UI, and confirming the final audio output.
 - **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
-- **Issue 1:** (P0) Verify and finalize the latest UI/UX enhancements.
+- **Issue 1:** (P0) Test and Verify Studio Mode End-to-End Functionality.
 
-  - **Issues Detail:**
-    - **Issue 1:** Verify and finalize the latest UI/UX enhancements.
-      - **Attempted fixes:** The agent has already written and replaced  and  to address the user's feedback.
-      - **Next debug checklist:**
-        1.  Use the  to capture the current state of the UI.
-        2.  **Verify Layout:** Check if the job table columns are now aligned with static widths and if long job names wrap correctly.
-        3.  **Verify Play Button:** Check if a Play button is visible in the table row for completed jobs.
-        4.  **Verify Audio Player:** Click on a completed job to open the modal and check if an audio player is present and functional.
-        5.  If any of these are incorrect, review and fix the CSS in  (e.g., , , ) and the React logic for the audio player in .
-      - **Why fix this issue and what will be achieved with the fix?** This will satisfy the user's explicit design and functionality requirements for the jobs dashboard, leading to a better user experience.
-      - **Status:** IN PROGRESS
-      - **Is recurring issue?** N
-      - **Should Test frontend/backend/both after fix?** frontend
-      - **Blocked on other issue:** None
+  **Issues Detail:**
+  - **Issue 1:** Test and Verify Studio Mode End-to-End Functionality.
+     - **Attempted fixes:** The agent has written all the necessary backend logic ( function) and frontend UI components (Studio settings tab). The settings have been successfully saved with . However, the actual creation of a job in this mode has not been attempted.
+     - **Next debug checklist:**
+        1.  Create a new job using the frontend Create Job form.
+        2.  Immediately monitor the backend logs (==> /var/log/supervisor/backend.err.log <==
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [416]
+INFO:     Stopping reloader process [49]
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [632] using WatchFiles
+INFO:     Started server process [634]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [49] using WatchFiles
+INFO:     Started server process [86]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [49] using WatchFiles
+INFO:     Started server process [85]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [85]
+INFO:     Started server process [507]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [507]
+INFO:     Started server process [607]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [607]
+INFO:     Started server process [672]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [672]
+INFO:     Started server process [745]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [745]
+INFO:     Started server process [814]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [814]
+INFO:     Stopping reloader process [49]
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [1104] using WatchFiles
+INFO:     Started server process [1106]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [48] using WatchFiles
+INFO:     Started server process [77]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [48] using WatchFiles
+INFO:     Started server process [85]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [48] using WatchFiles
+INFO:     Started server process [86]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [48] using WatchFiles
+INFO:     Started server process [85]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+
+==> /var/log/supervisor/backend.out.log <==
+INFO:     10.64.130.41:47982 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.135.219:43544 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.128.8:51644 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.128.53:57320 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.128.8:51644 - "GET /api/jobs/69529e05e6c1a0362bef3076/download HTTP/1.1" 200 OK
+INFO:     10.64.128.8:51644 - "GET /api/jobs/694cc923d45e695034b85743/download HTTP/1.1" 200 OK
+INFO:     10.64.128.53:57320 - "GET /api/jobs/694b491c6a149d4661331b98/download HTTP/1.1" 200 OK
+INFO:     10.64.128.6:45466 - "GET /api/jobs/694cc7b976532b16f074137f/download HTTP/1.1" 200 OK
+INFO:     10.64.128.53:57334 - "GET /api/jobs/694cc08a38fd99ef53a27ea7/download HTTP/1.1" 200 OK
+INFO:     10.64.128.53:57350 - "GET /api/jobs/6952f8b46f3c29fcd678d698/download HTTP/1.1" 200 OK
+INFO:     10.64.128.8:51650 - "GET /api/jobs/694b69987ff2a52a3f412b08/download HTTP/1.1" 200 OK
+INFO:     10.64.128.8:51664 - "GET /api/jobs/6952f8486f3c29fcd678d697/download HTTP/1.1" 200 OK
+INFO:     10.64.128.8:51674 - "GET /api/jobs/694cc62b119eae9d02cbc286/download HTTP/1.1" 200 OK
+INFO:     10.64.128.53:57358 - "GET /api/jobs/6952f48e9adc6842c16427b0/download HTTP/1.1" 200 OK
+INFO:     10.64.128.6:45480 - "GET /api/jobs/694b3ff9fc239978e94fa26b/download HTTP/1.1" 200 OK
+INFO:     10.64.128.6:45512 - "GET /api/jobs/694ca64c38a83f705a1db758/download HTTP/1.1" 200 OK
+INFO:     10.64.128.6:45536 - "GET /api/jobs/694cc65b20ba904ba3d15957/download HTTP/1.1" 200 OK
+INFO:     10.64.128.53:57360 - "GET /api/jobs/694b69b77ff2a52a3f412b09/download HTTP/1.1" 200 OK
+INFO:     10.64.128.8:51678 - "GET /api/jobs/694cc606119eae9d02cbc285/download HTTP/1.1" 200 OK
+INFO:     10.64.128.6:45544 - "GET /api/jobs/694cbaee38fd99ef53a27ea6/download HTTP/1.1" 200 OK
+INFO:     10.64.128.6:45526 - "GET /api/jobs/694cc872d45e695034b85742/download HTTP/1.1" 200 OK
+INFO:     10.64.128.6:45496 - "GET /api/jobs/694b438afc239978e94fa26c/download HTTP/1.1" 200 OK
+INFO:     10.64.128.8:51686 - "GET /api/jobs/694b5ac1d00a69eba71989c3/download HTTP/1.1" 200 OK
+INFO:     10.64.128.53:57362 - "GET /api/jobs/694cc812cb5b78d43b2de24a/download HTTP/1.1" 200 OK
+INFO:     10.64.130.136:51736 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.135.220:56432 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.130.41:53678 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.135.142:35998 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.135.220:56432 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.130.41:53678 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.135.142:35998 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.128.6:45526 - "GET /api/jobs/6952f48e9adc6842c16427b0/download HTTP/1.1" 200 OK
+INFO:     10.64.130.136:51736 - "GET /api/jobs/6952f8486f3c29fcd678d697/download HTTP/1.1" 200 OK
+INFO:     10.64.135.220:56432 - "GET /api/jobs/694cc65b20ba904ba3d15957/download HTTP/1.1" 200 OK
+INFO:     10.64.135.219:38418 - "GET /api/jobs/694cc923d45e695034b85743/download HTTP/1.1" 200 OK
+INFO:     10.64.135.237:59702 - "GET /api/jobs/694cc872d45e695034b85742/download HTTP/1.1" 200 OK
+INFO:     10.64.135.220:35684 - "GET /api/jobs/69529e05e6c1a0362bef3076/download HTTP/1.1" 200 OK
+INFO:     10.64.130.136:52926 - "GET /api/jobs/694cc812cb5b78d43b2de24a/download HTTP/1.1" 200 OK
+INFO:     10.64.130.41:53678 - "GET /api/jobs/694b39cab132c74aad09473b/download HTTP/1.1" 200 OK
+INFO:     10.64.128.8:51674 - "GET /api/jobs/694cc606119eae9d02cbc285/download HTTP/1.1" 200 OK
+INFO:     10.64.135.237:59712 - "GET /api/jobs/694cc08a38fd99ef53a27ea7/download HTTP/1.1" 200 OK
+INFO:     10.64.130.40:37074 - "GET /api/jobs/694b491c6a149d4661331b98/download HTTP/1.1" 200 OK
+INFO:     10.64.128.6:45466 - "GET /api/jobs/694b438afc239978e94fa26c/download HTTP/1.1" 200 OK
+INFO:     10.64.128.8:51678 - "GET /api/jobs/694b69747ff2a52a3f412b07/download HTTP/1.1" 200 OK
+INFO:     10.64.128.53:57362 - "GET /api/jobs/694cc62b119eae9d02cbc286/download HTTP/1.1" 200 OK
+INFO:     10.64.135.219:38426 - "GET /api/jobs/694b69b77ff2a52a3f412b09/download HTTP/1.1" 200 OK
+INFO:     10.64.135.237:59718 - "GET /api/jobs/694ca64c38a83f705a1db758/download HTTP/1.1" 200 OK
+INFO:     10.64.128.53:57378 - "GET /api/jobs/694cbaee38fd99ef53a27ea6/download HTTP/1.1" 200 OK
+INFO:     10.64.130.40:37080 - "GET /api/jobs/6952f8b46f3c29fcd678d698/download HTTP/1.1" 200 OK
+INFO:     10.64.130.41:53678 - "GET /api/jobs/694cc7b976532b16f074137f/download HTTP/1.1" 200 OK
+INFO:     10.64.135.142:35998 - "GET /api/jobs/694b69987ff2a52a3f412b08/download HTTP/1.1" 200 OK
+INFO:     10.64.130.40:37084 - "GET /api/jobs/694b3ff9fc239978e94fa26b/download HTTP/1.1" 200 OK
+INFO:     10.64.130.41:53682 - "GET /api/jobs/694b5ac1d00a69eba71989c3/download HTTP/1.1" 200 OK
+INFO:     10.64.135.142:36004 - "GET /api/jobs/694b363662e865d0f0bf1756/download HTTP/1.1" 200 OK
+INFO:     10.64.130.136:52926 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.130.136:52926 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.130.40:37074 - "GET /api/jobs/6953d395bae3e9a2dd670835/details HTTP/1.1" 200 OK
+INFO:     10.64.135.219:38442 - "GET /api/jobs/6953d395bae3e9a2dd670835/details HTTP/1.1" 200 OK
+INFO:     10.64.135.220:56432 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.135.220:56432 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.135.237:59718 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.128.53:60746 - "GET /api/jobs/6952f8b46f3c29fcd678d698/download HTTP/1.1" 200 OK
+INFO:     10.64.135.237:59718 - "GET /api/jobs/694cc923d45e695034b85743/download HTTP/1.1" 200 OK
+INFO:     10.64.130.136:52938 - "GET /api/jobs/694cc62b119eae9d02cbc286/download HTTP/1.1" 200 OK
+INFO:     10.64.135.219:38456 - "GET /api/jobs/6952f8486f3c29fcd678d697/download HTTP/1.1" 200 OK
+INFO:     10.64.128.53:60756 - "GET /api/jobs/694cc812cb5b78d43b2de24a/download HTTP/1.1" 200 OK
+INFO:     10.64.135.220:56432 - "GET /api/jobs/694b39cab132c74aad09473b/download HTTP/1.1" 200 OK
+INFO:     10.64.130.136:52950 - "GET /api/jobs/694cc7b976532b16f074137f/download HTTP/1.1" 200 OK
+INFO:     10.64.128.8:49908 - "GET /api/jobs/694cc872d45e695034b85742/download HTTP/1.1" 200 OK
+INFO:     10.64.135.220:35694 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.128.53:60764 - "GET /api/jobs/694cc65b20ba904ba3d15957/download HTTP/1.1" 200 OK
+INFO:     10.64.128.6:54346 - "GET /api/jobs/694cc08a38fd99ef53a27ea7/download HTTP/1.1" 200 OK
+INFO:     10.64.128.53:60746 - "GET /api/jobs/694b69987ff2a52a3f412b08/download HTTP/1.1" 200 OK
+INFO:     10.64.135.237:59736 - "GET /api/jobs/694b69747ff2a52a3f412b07/download HTTP/1.1" 200 OK
+INFO:     10.64.135.237:59722 - "GET /api/jobs/694b438afc239978e94fa26c/download HTTP/1.1" 200 OK
+INFO:     10.64.128.6:54356 - "GET /api/jobs/694b5ac1d00a69eba71989c3/download HTTP/1.1" 200 OK
+INFO:     10.64.130.136:52962 - "GET /api/jobs/694b3ff9fc239978e94fa26b/download HTTP/1.1" 200 OK
+INFO:     10.64.128.8:49912 - "GET /api/jobs/694ca64c38a83f705a1db758/download HTTP/1.1" 200 OK
+INFO:     10.64.135.219:38460 - "GET /api/jobs/69529e05e6c1a0362bef3076/download HTTP/1.1" 200 OK
+INFO:     10.64.135.219:38478 - "GET /api/jobs/694b69b77ff2a52a3f412b09/download HTTP/1.1" 200 OK
+INFO:     10.64.135.219:38468 - "GET /api/jobs/6952f48e9adc6842c16427b0/download HTTP/1.1" 200 OK
+INFO:     10.64.135.220:35700 - "GET /api/jobs/694cbaee38fd99ef53a27ea6/download HTTP/1.1" 200 OK
+INFO:     10.64.135.237:59744 - "GET /api/jobs/694b491c6a149d4661331b98/download HTTP/1.1" 200 OK
+INFO:     10.64.128.8:49908 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.135.237:59736 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.128.8:49908 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.130.136:50200 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.135.219:41300 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.135.220:50572 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.128.8:53826 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.128.53:45884 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.130.136:56830 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.130.136:56830 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.128.53:45900 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.128.8:37174 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.135.219:38262 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.128.6:38398 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.135.220:55038 - "GET /api/jobs HTTP/1.1" 200 OK
+INFO:     10.64.135.237:60222 - "GET /api/jobs HTTP/1.1" 200 OK) for output from the  function. Look for logs indicating Creating Studio project, Polling project status, and Downloading final audio.
+        3.  Check the job's status on the UI dashboard. It should transition through states like , , and finally .
+        4.  If the job fails, inspect the backend logs for HTTP error codes (e.g., 422) from the ElevenLabs Studio API and analyze the error response.
+        5.  Once the job is complete, navigate to the job details page and verify that the final audio can be played and downloaded.
+     - **Why fix this issue and what will be achieved with the fix?** This will validate that the user's latest and most complex feature request is fully functional, completing the dual-mode TTS system.
+     - **Status:** IN PROGRESS
+     - **Is recurring issue?** N
+     - **Should Test frontend/backend/both after fix?** both
+     - **Blocked on other issue:** None
 
 **In progress Task List**:
-There are no other tasks in progress. The current focus is on completing the pending UI issue.
+There are no other tasks in progress. The entire focus is on validating the new Studio Mode feature.
 
 **Upcoming and Future Tasks**
-There are no outstanding future tasks requested by the user at this time.
+There are no further tasks requested by the user at this time.
 
 **Completed work in this session**
-- **Core Functionality:**
-  - Implemented ElevenLabs v3 TTS integration with text chunking, parallel API calls, and audio merging ().
-  - Set up webhook notifications for completed jobs.
-  - Configured custom voice settings (speed, similarity boost).
-- **Bug Fixes:**
-  - **Resolved  recurring error:** This was a critical fix. The agent removed the  dependency and implemented a robust audio merging solution using Python's  module and a bundled  binary from the  library. This makes the solution self-contained and stable.
-  - Fixed  error by adding  to load environment variables correctly.
-  - Corrected the ElevenLabs model from  to .
-  - Adjusted text chunk size from 10,000 to 4,500 characters to comply with the  model's 5,000-character limit.
-- **UI/UX Development:**
-  - Iteratively redesigned the frontend multiple times based on user feedback to achieve a sophisticated glassmorphism design (, ).
-  - Implemented a job detail modal showing request data, logs, and detailed error messages.
-  - Added logic to display job processing duration.
-  - Added functionality to detect and allow deletion of Stuck jobs.
-  - Removed the Made with Emergent badge.
+- **UI Redesign:** Iteratively redesigned the entire frontend to an Enterprise SaaS aesthetic based on detailed user specifications.
+- **Job Detail Page:** Implemented a new SPA page () for detailed job inspection, moving away from a modal-based view.
+- **Per-Chunk Audio Players:** Added the ability to store and play audio for individual text chunks on the job details page.
+- **Persistent Settings Modal:** Created a settings modal to configure TTS parameters, which are saved in the database.
+- **ElevenLabs Studio Mode Integration:** Researched and implemented a new backend workflow using the ElevenLabs Studio API. This includes:
+  - New API logic in  to create and convert Studio projects.
+  - A new Studio tab in the frontend settings modal with specific configuration options.
+  - A universal mode selector in settings to switch between Chunking and Studio modes.
 
 **Earlier issues found/mentioned but not fixed**
-None. All issues raised by the user or discovered by the agent have been addressed, with the  issue being the most significant one that is now permanently resolved.
+None.
 
 **Known issue recurrence from previous fork**
 None.
@@ -93,73 +277,70 @@ None.
 
 
 **Key Technical Concepts**
--   **Backend:** FastAPI, Motor (async MongoDB driver), Pydantic, ElevenLabs Python SDK,  for running TTS jobs in the background,  for direct  execution.
--   **Frontend:** React, hooks (, ), Axios for API calls.
--   **Styling:** CSS with glassmorphism effects (e.g., ), flexbox, and grid layouts.
--   **Database:** MongoDB.
--   **Deployment/Environment:** The application runs in a containerized environment. A key challenge was managing dependencies like  that are not native Python packages.
+- **Backend:** FastAPI, Motor (async MongoDB driver),  background tasks,  for REST API calls to the Studio API, ElevenLabs Python SDK for the Chunking API.
+- **Frontend:** React, hooks, Axios,  for SPA navigation.
+- **Dual-Mode Architecture:** The application is architected to support two distinct TTS processing pipelines, selectable via a single setting.
 
 **key DB schema**
 -   **collection**: 
     -   **document structure**: 
+-   **collection**: 
+    -   **document structure**: 
 
 **changes in tech stack**
--   The  library was removed from the backend stack to resolve the persistent  dependency issue.
--    and  were added to .
+-    was added to the frontend to enable Single-Page Application (SPA) routing.
+-   The backend now uses the  library for direct REST API communication with the ElevenLabs Studio endpoints.
 
 **All files of reference**
--   : Contains all backend logic, including API endpoints, database operations, the core TTS processing flow, and the custom  audio merging function.
--   : The single source for the entire React frontend, including state management, component structure, and API interactions. It has been heavily modified throughout the session.
--   : Contains all custom CSS, including the complex glassmorphism styling and layout rules. Also heavily modified.
--   : Lists Python dependencies. Updated to include  to provide a reliable  binary.
+-   : Significantly updated to handle the dual-mode logic, new database models for settings, and the -based Studio API calls.
+-   : Significantly updated to implement SPA routing with  and the new tabbed settings modal with conditional UI for Chunking vs. Studio modes.
+-   : Updated with new styles for the mode selector tabs and other UI enhancements.
 
 **Areas that need refactoring**
--    has grown very large and contains all UI logic (Stats, Analytics, Form, Job Table, Modal). It should be broken down into smaller, more manageable components (e.g., , , ) to improve readability and maintainability.
+-    is now extremely large and monolithic. It contains the logic for the entire application, including routing, multiple pages (Dashboard, Job Details), and complex components (Settings Modal). This file should be broken down into a proper React project structure with separate files for pages, components, and hooks to improve maintainability.
 
 **key api endpoints**
--   : Creates a new TTS job.
--   : Lists all jobs.
--   : Retrieves details for a single job.
--   : Deletes a job.
--   : Serves the generated MP3 file for download.
+-   : Creates a new job, now dynamically uses either the Chunking or Studio processing function based on the active mode setting.
+-   : Retrieves full job details.
+-   : Serves audio for an individual chunk (Chunking mode only).
+-   : Retrieves the current TTS settings, including the active mode.
+-   : Updates the TTS settings.
 
 **Critical Info for New Agent**
--   The most critical problem, the recurring  error, has been permanently solved. **Do not re-introduce the  library.** The current solution in  uses a custom  function that calls the  binary (provided by ) via a . This approach is stable and has no external system dependencies.
--   The user is highly focused on the UI design and aesthetics. Pay close attention to visual details and reference images. The current task is a direct result of this focus.
--   The frontend code in  is monolithic. While functional, future modifications would be easier if it were componentized.
+- The application now operates in one of two modes: Chunking or Studio. The active mode is a universal setting stored in the database.
+- Your immediate and highest-priority task is to test the end-to-end functionality of the newly implemented Studio mode. The code is in place, but it has not been verified by an actual job run.
+- Be aware that the frontend code in  is monolithic. While it is functional, exercise caution when making changes. A future refactor to componentize the application would be beneficial.
 
-**documents and test_reports created in this job**
--   
--   
--   
+**documents and test reports created in this job**
+None new in this session.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  : rename the TTS Chunker to Larnyx TTS and centre it. Jobs dashboard should be styled like the image attached, i can no longer see the error messages, i need to be able to click on the job to see info, like the request from the endpoint, and logs etc.
-2.  : the items in the table are not aligned for the jobs because the length of the names are pushing the other columns there should be a wrap on every column and the width should be static.. also since the files are stored in the db, there should be a play button to play it directly as well as download, and an audio player when you click on the job.
-3.  : change that to 1.25
-4.  : what is the speed in the tts request?
-5.  : still not a fan of the frontend design, the container with the jobs sort of overflow, create new jobs and analytics are stacked vertically in a weird way, the cards do not have the translucent design with the gradient background like the 2 images in context both starting with Screenshot 2025 .....
-6.  : still getting the [Errno 2] No such file or directory: 'ffprobe' error. this needs to resolved fully and cannot reccur
-7.  : most recent job failed, why did it fail i need some logging details for all jobs
-8.  : we're missing a singnificant translation of the design i attached, we can see how broad the cards are, the translucency, the design of analytics etc. this looks very basic. also add how long it takes a job to run, remove the made with emergent there's a script in the index that's making it stay
-9.  : similarity boost should be 1
-10. : there is a speed parameter voice_settings.speed , make this 1.1
+1.  : can you add a player for all the chunks as wells in the job details so I can play every audio from every chunk
+2.  : currently we have the tts settings, you're going to add another request flow for the elevenlabs studio.. which means i can switch between the chunking which is this current setting with how it currently looks or studio, it can be a tab in the tts settings modal, chunking as one tab studio as another tab..
+3.  : if you need information about elevenlabs studio api let me know
+4.  : search for the latest ElevenLabs Studio API docs and the confirm with me before you implement
+5.  : 1. i want mode selector on settings modal because most of the jobs will come from an API not from the front end. so the settings modal needs to be applied universally. 2. yes same voice_id .. can i control speed of the generation? 3. i dont want to use any llm content generation but i want control so project api it is
+6.  : Implement
+
+The user has not sent any messages since approving the implementation plan for Studio mode. The next step is to test the implementation and report back.
 
 **Project Health Check:**
--   **Broken:** The UI layout for the jobs table is broken (misaligned columns), which the last agent action aimed to fix. The lack of an audio player is a missing feature, not technically broken.
--   **Mocked:** No mocked data is being used.
+-   **Broken:** The new Studio mode is implemented but unverified. It should be considered potentially broken until a successful end-to-end test is completed.
+-   **Mocked:** No mocked data or services are in use.
 
 **3rd Party Integrations**
--   **ElevenLabs:** Used for Text-to-Speech generation. It requires a User API Key, which is correctly stored in .
+-   **ElevenLabs API:** A user-provided API key is required. The application now interacts with two distinct parts of this API:
+    -   **Text-to-Speech API ():** Used for Chunking mode.
+    -   **Studio API ():** Used for Studio mode.
 
 **Testing status**
--   **Testing agent used after significant changes:** YES, used early in the project. Recent changes have been tested manually with  and .
+-   **Testing agent used after significant changes:** NO (for the latest Studio feature).
 -   **Troubleshoot agent used after agent stuck in loop:** NO
--   **Test files created:** [] (for the initial POC).
--   **Known regressions:** The  error was a significant regression that is now fixed. UI features like error visibility were temporarily lost during a redesign but have since been restored.
+-   **Test files created:** None for the recent features.
+-   **Known regressions:** None.
 
 **Credentials to test flow:**
-The ElevenLabs API key is located in the  file. The application can be tested by submitting jobs through the frontend UI.
+The ElevenLabs API key is located in the  file.
 
 **What agent forgot to execute**
-The agent has been diligent in following user requests, although some required multiple iterations. The current pending task is to verify the last code change that was intended to fix the UI layout and add audio playback features. The agent wrote the code but did not take the next step to verify its effect.</analysis>
+The agent has correctly implemented the code for the new Studio mode feature as requested. However, the final and most crucial step—testing the feature by creating a job—has not been performed. The agent stopped after confirming the settings were saved correctly, but before verifying the new processing pipeline.</analysis>
