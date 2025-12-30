@@ -967,22 +967,42 @@ const SettingsModal = ({ isOpen, onClose, onSave }) => {
                     </select>
                   </div>
                   {currentMode === 'chunking' && (
-                    <div className="setting-item">
-                      <label className="setting-label">Output Format</label>
-                      <select
-                        className="setting-select"
-                        value={settings?.output_format || 'mp3_44100_128'}
-                        onChange={(e) => updateSetting('output_format', e.target.value)}
-                      >
-                        <option value="mp3_44100_128">MP3 44.1kHz 128kbps</option>
-                        <option value="mp3_44100_192">MP3 44.1kHz 192kbps</option>
-                        <option value="mp3_22050_32">MP3 22.05kHz 32kbps</option>
-                        <option value="pcm_16000">PCM 16kHz</option>
-                        <option value="pcm_22050">PCM 22.05kHz</option>
-                        <option value="pcm_24000">PCM 24kHz</option>
-                        <option value="pcm_44100">PCM 44.1kHz</option>
-                      </select>
-                    </div>
+                    <>
+                      <div className="setting-item">
+                        <label className="setting-label">Output Format</label>
+                        <select
+                          className="setting-select"
+                          value={settings?.output_format || 'mp3_44100_128'}
+                          onChange={(e) => updateSetting('output_format', e.target.value)}
+                        >
+                          <option value="mp3_44100_128">MP3 44.1kHz 128kbps</option>
+                          <option value="mp3_44100_192">MP3 44.1kHz 192kbps</option>
+                          <option value="mp3_22050_32">MP3 22.05kHz 32kbps</option>
+                          <option value="pcm_16000">PCM 16kHz</option>
+                          <option value="pcm_22050">PCM 22.05kHz</option>
+                          <option value="pcm_24000">PCM 24kHz</option>
+                          <option value="pcm_44100">PCM 44.1kHz</option>
+                        </select>
+                      </div>
+                      <div className="setting-item">
+                        <label className="setting-label">
+                          Chunk Size
+                          <span className="setting-hint">Characters per chunk (500-20,000)</span>
+                        </label>
+                        <select
+                          className="setting-select"
+                          value={settings?.chunk_size || 4500}
+                          onChange={(e) => updateSetting('chunk_size', parseInt(e.target.value))}
+                          data-testid="chunk-size-select"
+                        >
+                          {Array.from({ length: 40 }, (_, i) => (i + 1) * 500).map(size => (
+                            <option key={size} value={size}>
+                              {size.toLocaleString()} characters
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
                   )}
                   {currentMode === 'studio' && (
                     <div className="setting-item">
@@ -1184,8 +1204,25 @@ const DashboardPage = () => {
 
   const charCount = text.length;
   const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
-  const estimatedChunks = Math.ceil(charCount / 4500);
+  const [currentChunkSize, setCurrentChunkSize] = useState(4500);
+  const estimatedChunks = Math.ceil(charCount / currentChunkSize);
   const canSubmit = name.trim() && text.trim().length >= 100 && !isCreating;
+
+  // Fetch current chunk size from settings
+  useEffect(() => {
+    const fetchChunkSize = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/settings`);
+        if (response.ok) {
+          const data = await response.json();
+          setCurrentChunkSize(data.chunk_size || 4500);
+        }
+      } catch (error) {
+        console.error('Error fetching settings:', error);
+      }
+    };
+    fetchChunkSize();
+  }, []);
 
   const fetchJobs = useCallback(async () => {
     try {
