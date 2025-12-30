@@ -890,6 +890,8 @@ async def patch_settings(updates: TTSSettingsUpdate):
     current_settings = await get_tts_settings()
     
     # Apply updates
+    if updates.mode is not None:
+        current_settings["mode"] = updates.mode
     if updates.voice_id is not None:
         current_settings["voice_id"] = updates.voice_id
     if updates.model_id is not None:
@@ -905,6 +907,13 @@ async def patch_settings(updates: TTSSettingsUpdate):
         current_vs["style"] = vs.style
         current_vs["use_speaker_boost"] = vs.use_speaker_boost
         current_settings["voice_settings"] = current_vs
+    if updates.studio_settings is not None:
+        ss = updates.studio_settings
+        current_ss = current_settings.get("studio_settings", {})
+        current_ss["quality_preset"] = ss.quality_preset
+        current_ss["volume_normalization"] = ss.volume_normalization
+        current_ss["apply_text_normalization"] = ss.apply_text_normalization
+        current_settings["studio_settings"] = current_ss
     
     # Upsert settings document
     await db.settings.update_one(
