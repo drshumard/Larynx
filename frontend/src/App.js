@@ -679,10 +679,18 @@ const JobDetailsPage = () => {
                     <span className="config-value code">{job.tts_config.voice_id}</span>
                   </div>
                   {job.tts_config.mode !== 'studio' && (
-                    <div className="config-item">
-                      <span className="config-label">Output Format</span>
-                      <span className="config-value code">{job.tts_config.output_format}</span>
-                    </div>
+                    <>
+                      <div className="config-item">
+                        <span className="config-label">Output Format</span>
+                        <span className="config-value code">{job.tts_config.output_format}</span>
+                      </div>
+                      {job.tts_config.chunk_size && (
+                        <div className="config-item">
+                          <span className="config-label">Chunk Size</span>
+                          <span className="config-value code">{job.tts_config.chunk_size.toLocaleString()} chars</span>
+                        </div>
+                      )}
+                    </>
                   )}
                   {job.tts_config.mode === 'studio' && job.tts_config.studio_settings && (
                     <div className="config-item">
@@ -1331,7 +1339,19 @@ const DashboardPage = () => {
     <div className="app">
       <SettingsModal 
         isOpen={showSettings} 
-        onClose={() => setShowSettings(false)} 
+        onClose={() => setShowSettings(false)}
+        onSave={async () => {
+          // Refresh chunk size after settings save
+          try {
+            const response = await fetch(`${API_URL}/api/settings`);
+            if (response.ok) {
+              const data = await response.json();
+              setCurrentChunkSize(data.chunk_size || 4500);
+            }
+          } catch (error) {
+            console.error('Error fetching settings:', error);
+          }
+        }}
       />
       
       <div className="dashboard">
