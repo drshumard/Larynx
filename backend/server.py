@@ -1006,6 +1006,7 @@ async def create_job(job_data: JobCreate, background_tasks: BackgroundTasks):
         chunk_count = 1
     
     chunk_requests = []
+    pronunciation_dict = tts_settings.get("pronunciation_dictionary")
     for i, chunk_text in enumerate(chunks):
         if mode == "chunking":
             chunk_requests.append({
@@ -1016,6 +1017,7 @@ async def create_job(job_data: JobCreate, background_tasks: BackgroundTasks):
                     "model_id": tts_settings.get("model_id", ELEVENLABS_MODEL),
                     "output_format": tts_settings.get("output_format", "mp3_44100_128"),
                     "voice_settings": voice_settings,
+                    "pronunciation_dictionary_locators": [pronunciation_dict] if pronunciation_dict and pronunciation_dict.get("pronunciation_dictionary_id") else None,
                     "text": chunk_text,
                     "text_length": len(chunk_text)
                 },
