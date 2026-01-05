@@ -97,11 +97,12 @@ fi
 
 echo -e "${GREEN}✅ PM2 processes running${NC}"
 
-# Step 6: Reload Nginx (if config changed)
-echo -e "${YELLOW}🔄 Testing and reloading Nginx...${NC}"
+# Step 6: Update and reload Nginx
+echo -e "${YELLOW}🔄 Updating Nginx configuration...${NC}"
+sudo cp $APP_DIR/deploy/nginx-larynx.conf /etc/nginx/sites-available/larynx
 sudo nginx -t && sudo systemctl reload nginx
 
-echo -e "${GREEN}✅ Nginx reloaded${NC}"
+echo -e "${GREEN}✅ Nginx updated${NC}"
 
 # Step 7: Health check
 echo -e "${YELLOW}🏥 Running health check...${NC}"
