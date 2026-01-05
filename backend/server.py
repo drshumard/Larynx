@@ -39,10 +39,13 @@ ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "")
 ELEVENLABS_VOICE_ID = os.environ.get("ELEVENLABS_VOICE_ID", "LNHBM9NjjOl44Efsdmtl")
 ELEVENLABS_MODEL = os.environ.get("ELEVENLABS_MODEL", "eleven_multilingual_v2")
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "")
-STORAGE_DIR = "/app/backend/storage"
+APP_DOMAIN = os.environ.get("APP_DOMAIN", "http://localhost:8001")
+STORAGE_DIR = os.environ.get("STORAGE_DIR", "/app/backend/storage")
 
 # Debug: Print API key status
 print(f"ElevenLabs API Key loaded: {'Yes' if ELEVENLABS_API_KEY else 'No'}")
+print(f"App Domain: {APP_DOMAIN}")
+print(f"Webhook URL: {WEBHOOK_URL or 'Not configured'}")
 
 # Constants
 DEFAULT_CHUNK_SIZE = 4500  # Default chunk size for chunking mode
