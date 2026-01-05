@@ -65,8 +65,14 @@ deactivate
 echo -e "${YELLOW}🔄 Restarting PM2 processes...${NC}"
 cd $APP_DIR
 
+# Ensure logs directory exists
+mkdir -p $APP_DIR/logs
+
 # Copy ecosystem config to app root if not there
 if [ ! -f "$APP_DIR/ecosystem.config.js" ]; then
+    cp $APP_DIR/deploy/ecosystem.config.js $APP_DIR/
+else
+    # Update ecosystem config on each deploy
     cp $APP_DIR/deploy/ecosystem.config.js $APP_DIR/
 fi
 
