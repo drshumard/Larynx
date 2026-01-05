@@ -79,22 +79,22 @@ cd $APP_DIR
 # Ensure logs directory exists
 mkdir -p $APP_DIR/logs
 
-# Copy ecosystem config to app root if not there
-if [ ! -f "$APP_DIR/ecosystem.config.js" ]; then
-    cp $APP_DIR/deploy/ecosystem.config.js $APP_DIR/
-else
-    # Update ecosystem config on each deploy
-    cp $APP_DIR/deploy/ecosystem.config.js $APP_DIR/
-fi
-
-# Check if process exists, start or restart accordingly
+# Check if process exists, restart or start fresh
 if pm2 describe larynx-backend > /dev/null 2>&1; then
-    pm2 restart larynx-backend --update-env
+    pm2 restart larynx-backend
 else
-    echo -e "${YELLOW}First deploy - starting PM2 processes...${NC}"
-    pm2 start ecosystem.config.js
+    echo -e "${YELLOW}Starting PM2 process...${NC}"
+    cd $BACKEND_DIR
+    source venv/bin/activate
+    pm2 start venv/bin/uvicorn \
+        --name larynx-backend \
+        --cwd $BACKEND_DIR \
+        -- server:app --host 127.0.0.1 --port 8002
+    deactivate
 fi
 
+sleep 2
+pm2 status
 echo -e "${GREEN}✅ PM2 processes running${NC}"
 
 # Step 6: Update and reload Nginx
