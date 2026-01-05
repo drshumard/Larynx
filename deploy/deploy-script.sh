@@ -1,23 +1,31 @@
 #!/bin/bash
 
 # Production Deployment Script for Larynx TTS
-# Run this on your Lightsail server after git push
+# Run as your normal user (ubuntu), NOT as root
 
-set -e  # Exit on any error
+set -e
 
 echo "🚀 Starting Larynx TTS production deployment..."
 
-# Colors for output
+# Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 # Configuration
 APP_DIR="/var/www/larynx"
 FRONTEND_DIR="$APP_DIR/frontend"
 BACKEND_DIR="$APP_DIR/backend"
 DOMAIN="https://larynx.drshumard.com"
+BACKEND_PORT=8002
+
+# Check we're NOT running as root
+if [ "$EUID" -eq 0 ]; then
+    echo -e "${RED}ERROR: Do NOT run this script as root!${NC}"
+    echo "Run as: ./deploy/deploy-script.sh"
+    exit 1
+fi
 
 # Step 1: Pull latest code
 echo -e "${YELLOW}📥 Pulling latest code from repository...${NC}"
@@ -40,11 +48,8 @@ pip install --upgrade pip
 pip install -r requirements.txt
 deactivate
 
-# Ensure BACKEND_PORT is set in .env
-if ! grep -q "BACKEND_PORT" $BACKEND_DIR/.env 2>/dev/null; then
-    echo "BACKEND_PORT=8002" >> $BACKEND_DIR/.env
-    echo -e "${YELLOW}Added BACKEND_PORT=8002 to .env${NC}"
-fi
+# Ensure required env vars exist
+grep -q "BACKEND_PORT" $BACKEND_DIR/.env 2>/dev/null || echo "BACKEND_PORT=$BACKEND_PORT" >> $BACKEND_DIR/.env
 
 echo -e "${GREEN}✅ Backend dependencies updated${NC}"
 
@@ -52,77 +57,69 @@ echo -e "${GREEN}✅ Backend dependencies updated${NC}"
 echo -e "${YELLOW}🏗️  Building frontend for production...${NC}"
 cd $FRONTEND_DIR
 
-# Install dependencies
 yarn install
-
-# Build with production backend URL
 REACT_APP_BACKEND_URL=$DOMAIN yarn build
 
 echo -e "${GREEN}✅ Frontend build complete${NC}"
 
-# Step 4: Run cleanup script to free disk space
+# Step 4: Run cleanup script
 echo -e "${YELLOW}🧹 Running audio cleanup...${NC}"
 cd $BACKEND_DIR
 source venv/bin/activate
 python cleanup.py
 deactivate
 
-# Setup hourly cleanup cron job if not exists
+# Setup hourly cleanup cron
 CRON_CMD="0 * * * * cd $BACKEND_DIR && source venv/bin/activate && python cleanup.py >> $APP_DIR/logs/cleanup.log 2>&1"
 (crontab -l 2>/dev/null | grep -v "larynx.*cleanup.py" ; echo "$CRON_CMD") | crontab -
-echo -e "${GREEN}✅ Cleanup cron job configured${NC}"
+echo -e "${GREEN}✅ Cleanup configured${NC}"
 
-# Step 5: Restart PM2 processes
-echo -e "${YELLOW}🔄 Restarting PM2 processes...${NC}"
-cd $APP_DIR
-
-# Ensure logs directory exists
+# Step 5: Restart PM2 process
+echo -e "${YELLOW}🔄 Restarting PM2 process...${NC}"
 mkdir -p $APP_DIR/logs
 
-# Check if process exists, restart or start fresh
 if pm2 describe larynx-backend > /dev/null 2>&1; then
     pm2 restart larynx-backend
 else
-    echo -e "${YELLOW}Starting PM2 process...${NC}"
+    echo -e "${YELLOW}Starting new PM2 process...${NC}"
     cd $BACKEND_DIR
     source venv/bin/activate
     pm2 start venv/bin/uvicorn \
         --name larynx-backend \
         --cwd $BACKEND_DIR \
-        -- server:app --host 127.0.0.1 --port 8002
+        --interpreter none \
+        --output $APP_DIR/logs/backend-out.log \
+        --error $APP_DIR/logs/backend-error.log \
+        -- server:app --host 127.0.0.1 --port $BACKEND_PORT
     deactivate
 fi
 
 sleep 2
 pm2 status
-echo -e "${GREEN}✅ PM2 processes running${NC}"
+echo -e "${GREEN}✅ PM2 running${NC}"
 
-# Step 6: Update and reload Nginx
-echo -e "${YELLOW}🔄 Updating Nginx configuration...${NC}"
+# Step 6: Update Nginx
+echo -e "${YELLOW}🔄 Updating Nginx...${NC}"
 sudo cp $APP_DIR/deploy/nginx-larynx.conf /etc/nginx/sites-available/larynx
+sudo ln -sf /etc/nginx/sites-available/larynx /etc/nginx/sites-enabled/larynx
 sudo nginx -t && sudo systemctl reload nginx
-
 echo -e "${GREEN}✅ Nginx updated${NC}"
 
 # Step 7: Health check
 echo -e "${YELLOW}🏥 Running health check...${NC}"
-sleep 3
-HEALTH_CHECK=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8002/api/health)
+sleep 2
+HEALTH_CHECK=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:$BACKEND_PORT/api/health)
 
 if [ "$HEALTH_CHECK" = "200" ]; then
     echo -e "${GREEN}✅ Health check passed!${NC}"
+    pm2 save
 else
     echo -e "${RED}❌ Health check failed (HTTP $HEALTH_CHECK)${NC}"
-    echo -e "${YELLOW}Check logs: pm2 logs larynx-backend${NC}"
+    echo "Check logs: pm2 logs larynx-backend"
     exit 1
 fi
 
 echo ""
 echo -e "${GREEN}🎉 Deployment complete!${NC}"
-echo -e "${GREEN}   App URL: $DOMAIN${NC}"
-echo -e "${GREEN}   API URL: $DOMAIN/api${NC}"
-echo ""
-echo "Useful commands:"
-echo "  pm2 logs larynx-backend    - View backend logs"
-echo "  pm2 status                 - Check process status"
-echo "  pm2 restart larynx-backend - Restart backend"
+echo -e "${GREEN}   App: $DOMAIN${NC}"
+echo -e "${GREEN}   API: $DOMAIN/api${NC}"
