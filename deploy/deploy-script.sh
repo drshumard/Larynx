@@ -100,7 +100,7 @@ echo -e "${GREEN}✅ Nginx reloaded${NC}"
 # Step 7: Health check
 echo -e "${YELLOW}🏥 Running health check...${NC}"
 sleep 3
-HEALTH_CHECK=$(curl -s -o /dev/null -w "%{http_code}" $DOMAIN/api/health)
+HEALTH_CHECK=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8002/api/health)
 
 if [ "$HEALTH_CHECK" = "200" ]; then
     echo -e "${GREEN}✅ Health check passed!${NC}"
