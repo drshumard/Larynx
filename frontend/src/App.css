@@ -1796,6 +1796,13 @@ body {
   color: var(--text-muted);
 }
 
+.setting-hint-inline {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: 8px;
+}
+
 .setting-input,
 .setting-select {
   width: 100%;
