@@ -40,6 +40,12 @@ pip install --upgrade pip
 pip install -r requirements.txt
 deactivate
 
+# Ensure BACKEND_PORT is set in .env
+if ! grep -q "BACKEND_PORT" $BACKEND_DIR/.env 2>/dev/null; then
+    echo "BACKEND_PORT=8002" >> $BACKEND_DIR/.env
+    echo -e "${YELLOW}Added BACKEND_PORT=8002 to .env${NC}"
+fi
+
 echo -e "${GREEN}✅ Backend dependencies updated${NC}"
 
 # Step 3: Frontend build
