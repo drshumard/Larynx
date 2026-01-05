@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Complete Cleanup and Fresh Install Script for Larynx TTS
-# This removes everything and starts fresh
+# Run as your normal user (ubuntu), NOT as root
 
 set -e
 
@@ -18,10 +18,16 @@ APP_DIR="/var/www/larynx"
 DOMAIN="larynx.drshumard.com"
 BACKEND_PORT=8002
 
+# Check we're NOT running as root
+if [ "$EUID" -eq 0 ]; then
+    echo -e "${RED}ERROR: Do NOT run this script as root!${NC}"
+    echo "Run as your normal user (ubuntu): ./deploy/fresh-install.sh"
+    exit 1
+fi
+
 echo ""
 echo -e "${YELLOW}[1/10] Stopping and removing PM2 processes...${NC}"
 pm2 delete larynx-backend 2>/dev/null || true
-pm2 delete larynx-cleanup 2>/dev/null || true
 pm2 save --force 2>/dev/null || true
 echo -e "${GREEN}✅ PM2 cleaned${NC}"
 
@@ -64,28 +70,16 @@ echo -e "${GREEN}✅ Python venv created${NC}"
 
 echo ""
 echo -e "${YELLOW}[7/10] Configuring .env file...${NC}"
-# Ensure BACKEND_PORT is in .env
 if [ ! -f "$APP_DIR/backend/.env" ]; then
     echo -e "${RED}ERROR: .env file not found!${NC}"
     echo "Please create $APP_DIR/backend/.env with your settings"
     exit 1
 fi
 
-# Add BACKEND_PORT if missing
-if ! grep -q "BACKEND_PORT" $APP_DIR/backend/.env; then
-    echo "" >> $APP_DIR/backend/.env
-    echo "BACKEND_PORT=$BACKEND_PORT" >> $APP_DIR/backend/.env
-fi
-
-# Add STORAGE_DIR if missing
-if ! grep -q "STORAGE_DIR" $APP_DIR/backend/.env; then
-    echo "STORAGE_DIR=$APP_DIR/backend/storage" >> $APP_DIR/backend/.env
-fi
-
-# Add APP_DOMAIN if missing
-if ! grep -q "APP_DOMAIN" $APP_DIR/backend/.env; then
-    echo "APP_DOMAIN=https://$DOMAIN" >> $APP_DIR/backend/.env
-fi
+# Add missing env vars
+grep -q "BACKEND_PORT" $APP_DIR/backend/.env || echo "BACKEND_PORT=$BACKEND_PORT" >> $APP_DIR/backend/.env
+grep -q "STORAGE_DIR" $APP_DIR/backend/.env || echo "STORAGE_DIR=$APP_DIR/backend/storage" >> $APP_DIR/backend/.env
+grep -q "APP_DOMAIN" $APP_DIR/backend/.env || echo "APP_DOMAIN=https://$DOMAIN" >> $APP_DIR/backend/.env
 
 echo -e "${GREEN}✅ .env configured${NC}"
 
@@ -98,37 +92,28 @@ source venv/bin/activate
 echo "Testing server import..."
 python -c "from server import app; print('✅ Server imports OK')"
 
-# Test if uvicorn works
-echo "Testing uvicorn startup (5 seconds)..."
-timeout 5 venv/bin/uvicorn server:app --host 127.0.0.1 --port $BACKEND_PORT &
+# Test if uvicorn works (run in background, test, then kill)
+echo "Testing uvicorn startup..."
+venv/bin/uvicorn server:app --host 127.0.0.1 --port $BACKEND_PORT &
 UVICORN_PID=$!
-sleep 3
+sleep 4
 
 # Test health endpoint
 HEALTH=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:$BACKEND_PORT/api/health 2>/dev/null || echo "000")
+
+# Kill test server
 kill $UVICORN_PID 2>/dev/null || true
 wait $UVICORN_PID 2>/dev/null || true
+
+deactivate
 
 if [ "$HEALTH" = "200" ]; then
     echo -e "${GREEN}✅ Backend test passed (HTTP $HEALTH)${NC}"
 else
     echo -e "${RED}❌ Backend test failed (HTTP $HEALTH)${NC}"
-    echo "Checking for errors..."
-    cd $APP_DIR/backend
-    source venv/bin/activate
-    python -c "
-import sys
-try:
-    from server import app
-    print('Import OK')
-except Exception as e:
-    print(f'Import Error: {e}')
-    sys.exit(1)
-"
+    echo "There may be a port conflict or missing dependency"
     exit 1
 fi
-
-deactivate
 
 echo ""
 echo -e "${YELLOW}[9/10] Building frontend...${NC}"
@@ -140,31 +125,36 @@ echo -e "${GREEN}✅ Frontend built${NC}"
 echo ""
 echo -e "${YELLOW}[10/10] Setting up services...${NC}"
 
-# Setup nginx
+# Setup nginx (needs sudo)
 sudo cp $APP_DIR/deploy/nginx-larynx.conf /etc/nginx/sites-available/larynx
 sudo ln -sf /etc/nginx/sites-available/larynx /etc/nginx/sites-enabled/larynx
 sudo nginx -t && sudo systemctl reload nginx
-echo "✅ Nginx configured"
+echo "✅ Nginx configured (frontend served as static files)"
 
-# Setup PM2 with a simpler approach - direct command instead of ecosystem file
+# Start backend with PM2 (as current user - ubuntu)
 cd $APP_DIR/backend
 source venv/bin/activate
 
-# Start with PM2 using direct command
 pm2 start venv/bin/uvicorn \
     --name larynx-backend \
     --cwd $APP_DIR/backend \
+    --interpreter none \
+    --output $APP_DIR/logs/backend-out.log \
+    --error $APP_DIR/logs/backend-error.log \
     -- server:app --host 127.0.0.1 --port $BACKEND_PORT
 
 deactivate
 
 # Wait and verify
 sleep 3
+echo ""
+echo "PM2 Status:"
 pm2 status
 
 # Final health check
 echo ""
 echo -e "${YELLOW}Final health check...${NC}"
+sleep 2
 FINAL_HEALTH=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:$BACKEND_PORT/api/health)
 
 if [ "$FINAL_HEALTH" = "200" ]; then
@@ -178,17 +168,21 @@ if [ "$FINAL_HEALTH" = "200" ]; then
     echo ""
     echo -e "${GREEN}🎉 INSTALLATION COMPLETE!${NC}"
     echo ""
-    echo "Your app is running at: https://$DOMAIN"
-    echo "API endpoint: https://$DOMAIN/api"
+    echo "=========================================="
+    echo "Frontend: https://$DOMAIN (served by Nginx)"
+    echo "API:      https://$DOMAIN/api (proxied to PM2)"
+    echo "=========================================="
     echo ""
     echo "Useful commands:"
-    echo "  pm2 logs larynx-backend   - View logs"
-    echo "  pm2 status                - Check status"  
+    echo "  pm2 logs larynx-backend    - View logs"
+    echo "  pm2 status                 - Check status"  
     echo "  pm2 restart larynx-backend - Restart"
+    echo "  pm2 monit                  - Monitor"
 else
     echo -e "${RED}❌ Health check failed (HTTP $FINAL_HEALTH)${NC}"
     echo ""
-    echo "Debug info:"
-    pm2 logs larynx-backend --lines 20
+    echo "Check logs:"
+    echo "  cat $APP_DIR/logs/backend-error.log"
+    echo "  pm2 logs larynx-backend"
     exit 1
 fi
