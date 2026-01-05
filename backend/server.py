@@ -943,6 +943,12 @@ async def patch_settings(updates: TTSSettingsUpdate):
         current_settings["output_format"] = updates.output_format
     if updates.chunk_size is not None:
         current_settings["chunk_size"] = updates.chunk_size
+    if updates.pronunciation_dictionary is not None:
+        pd = updates.pronunciation_dictionary
+        current_settings["pronunciation_dictionary"] = {
+            "pronunciation_dictionary_id": pd.pronunciation_dictionary_id,
+            "version_id": pd.version_id
+        }
     if updates.voice_settings is not None:
         vs = updates.voice_settings
         current_vs = current_settings.get("voice_settings", {})
