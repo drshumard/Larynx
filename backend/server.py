@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 from elevenlabs import ElevenLabs
+from elevenlabs.types import PronunciationDictionaryVersionLocator
 
 # Get ffmpeg path from imageio-ffmpeg (aarch64 compatible)
 import imageio_ffmpeg
