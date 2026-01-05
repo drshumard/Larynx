@@ -657,6 +657,7 @@ async def process_studio_job(job_id: str):
             
             # Update job as completed
             audio_url = f"/api/jobs/{job_id}/download"
+            full_audio_url = f"{APP_DOMAIN}{audio_url}"
             await db.jobs.update_one(
                 {"_id": ObjectId(job_id)},
                 {"$set": {
@@ -678,7 +679,7 @@ async def process_studio_job(job_id: str):
                 await send_webhook(
                     job_id=job_id,
                     name=job.get("name"),
-                    audio_url=audio_url,
+                    audio_url=full_audio_url,
                     status="completed",
                     text_length=len(text),
                     chunk_count=1
