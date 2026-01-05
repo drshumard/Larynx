@@ -817,8 +817,7 @@ async def process_tts_job(job_id: str):
         
         # Send webhook
         job = await db.jobs.find_one({"_id": ObjectId(job_id)})
-        frontend_url = os.environ.get("REACT_APP_BACKEND_URL", "https://audio-genie-5.preview.emergentagent.com")
-        full_audio_url = f"{frontend_url}{audio_url}"
+        full_audio_url = f"{APP_DOMAIN}{audio_url}"
         await send_webhook(
             job_id=job_id,
             name=job["name"],
