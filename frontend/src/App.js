@@ -429,7 +429,10 @@ const ChunkRequestCard = ({ chunk, index, isExpanded, onToggle, jobId }) => {
                 voice_id: chunk.request?.voice_id,
                 model_id: chunk.request?.model_id,
                 output_format: chunk.request?.output_format,
-                voice_settings: chunk.request?.voice_settings
+                voice_settings: chunk.request?.voice_settings,
+                ...(chunk.request?.pronunciation_dictionary_locators && {
+                  pronunciation_dictionary_locators: chunk.request.pronunciation_dictionary_locators
+                })
               }, null, 2)}</pre>
             </div>
           </div>
