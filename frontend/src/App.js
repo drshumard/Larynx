@@ -698,6 +698,17 @@ const JobDetailsPage = () => {
                       <span className="config-value code">{job.tts_config.studio_settings.quality_preset}</span>
                     </div>
                   )}
+                  {job.tts_config.pronunciation_dictionary?.pronunciation_dictionary_id && (
+                    <div className="config-item full">
+                      <span className="config-label">Pronunciation Dictionary</span>
+                      <div className="config-settings">
+                        <span className="setting-badge">ID: {job.tts_config.pronunciation_dictionary.pronunciation_dictionary_id}</span>
+                        {job.tts_config.pronunciation_dictionary.version_id && (
+                          <span className="setting-badge">Version: {job.tts_config.pronunciation_dictionary.version_id}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   <div className="config-item full">
                     <span className="config-label">Voice Settings</span>
                     <div className="config-settings">
