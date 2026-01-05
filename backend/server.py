@@ -1056,6 +1056,7 @@ async def create_job(job_data: JobCreate, background_tasks: BackgroundTasks):
             "model_id": tts_settings.get("model_id", ELEVENLABS_MODEL),
             "output_format": tts_settings.get("output_format", "mp3_44100_128"),
             "chunk_size": tts_settings.get("chunk_size", DEFAULT_CHUNK_SIZE) if mode == "chunking" else None,
+            "pronunciation_dictionary": tts_settings.get("pronunciation_dictionary"),
             "voice_settings": voice_settings,
             "studio_settings": studio_settings
         },
