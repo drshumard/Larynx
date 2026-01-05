@@ -82,16 +82,14 @@ if pm2 describe larynx-backend > /dev/null 2>&1; then
     pm2 restart larynx-backend
 else
     echo -e "${YELLOW}Starting new PM2 process...${NC}"
-    cd $BACKEND_DIR
-    source venv/bin/activate
-    pm2 start venv/bin/uvicorn \
+    # Copy and use wrapper script
+    cp $APP_DIR/deploy/start-backend.sh $BACKEND_DIR/
+    chmod +x $BACKEND_DIR/start-backend.sh
+    
+    pm2 start $BACKEND_DIR/start-backend.sh \
         --name larynx-backend \
-        --cwd $BACKEND_DIR \
-        --interpreter none \
         --output $APP_DIR/logs/backend-out.log \
-        --error $APP_DIR/logs/backend-error.log \
-        -- server:app --host 127.0.0.1 --port $BACKEND_PORT
-    deactivate
+        --error $APP_DIR/logs/backend-error.log
 fi
 
 sleep 2
