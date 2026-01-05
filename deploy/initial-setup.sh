@@ -75,7 +75,13 @@ if [ ! -f "$APP_DIR/backend/.env" ]; then
     cp $APP_DIR/deploy/production.env.example $APP_DIR/backend/.env
     echo -e "${YELLOW}⚠️  Please edit $APP_DIR/backend/.env with your settings!${NC}"
     echo "Required: ELEVENLABS_API_KEY, MONGO_URL, WEBHOOK_URL"
+    echo "Port is set to 8002 to avoid conflicts"
     read -p "Press Enter after editing .env..."
+else
+    # Ensure BACKEND_PORT exists
+    if ! grep -q "BACKEND_PORT" $APP_DIR/backend/.env; then
+        echo "BACKEND_PORT=8002" >> $APP_DIR/backend/.env
+    fi
 fi
 
 # Step 7: Setup Nginx
