@@ -250,6 +250,15 @@ async def tts_chunk_to_audio(client: ElevenLabs, text: str, settings: dict) -> b
     """
     voice_settings = settings.get("voice_settings", {})
     
+    # Build pronunciation dictionary locators if configured
+    pronunciation_dict = settings.get("pronunciation_dictionary")
+    pronunciation_dictionary_locators = None
+    if pronunciation_dict and pronunciation_dict.get("pronunciation_dictionary_id"):
+        locator = {"pronunciation_dictionary_id": pronunciation_dict["pronunciation_dictionary_id"]}
+        if pronunciation_dict.get("version_id"):
+            locator["version_id"] = pronunciation_dict["version_id"]
+        pronunciation_dictionary_locators = [locator]
+    
     # Use the text_to_speech.convert method from the SDK
     audio_generator = client.text_to_speech.convert(
         text=text,
@@ -262,7 +271,8 @@ async def tts_chunk_to_audio(client: ElevenLabs, text: str, settings: dict) -> b
             "speed": voice_settings.get("speed", 1.2),
             "style": voice_settings.get("style", 0),
             "use_speaker_boost": voice_settings.get("use_speaker_boost", False)
-        }
+        },
+        pronunciation_dictionary_locators=pronunciation_dictionary_locators
     )
     
     # Collect all audio bytes from generator
