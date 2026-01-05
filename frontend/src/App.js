@@ -1030,7 +1030,44 @@ const SettingsModal = ({ isOpen, onClose, onSave }) => {
                 </div>
               </div>
 
-              {/* Voice Settings - Common to both modes */}
+              {/* Pronunciation Dictionary - Common to both modes */}
+              <div className="settings-section">
+                <h3 className="settings-section-title">
+                  <FileText />
+                  Pronunciation Dictionary
+                  <span className="setting-hint-inline">(Optional)</span>
+                </h3>
+                <div className="settings-grid">
+                  <div className="setting-item">
+                    <label className="setting-label">
+                      Dictionary ID
+                      <span className="setting-hint">From ElevenLabs dashboard</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="setting-input"
+                      value={settings?.pronunciation_dictionary?.pronunciation_dictionary_id || ''}
+                      onChange={(e) => updateSetting('pronunciation_dictionary.pronunciation_dictionary_id', e.target.value)}
+                      placeholder="e.g., Vmd4Zor6fplcA7WrINey"
+                      data-testid="pronunciation-dictionary-id-input"
+                    />
+                  </div>
+                  <div className="setting-item">
+                    <label className="setting-label">
+                      Version ID
+                      <span className="setting-hint">Leave empty for latest version</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="setting-input"
+                      value={settings?.pronunciation_dictionary?.version_id || ''}
+                      onChange={(e) => updateSetting('pronunciation_dictionary.version_id', e.target.value)}
+                      placeholder="Optional - uses latest if empty"
+                      data-testid="pronunciation-dictionary-version-input"
+                    />
+                  </div>
+                </div>
+              </div>
               <div className="settings-section">
                 <h3 className="settings-section-title">
                   <Volume2 />
