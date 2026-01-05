@@ -888,12 +888,21 @@ async def get_settings():
 @app.put("/api/settings")
 async def update_settings(settings: TTSSettings):
     """Update TTS settings. Settings persist until changed again."""
+    # Handle pronunciation dictionary
+    pronunciation_dict = None
+    if settings.pronunciation_dictionary:
+        pronunciation_dict = {
+            "pronunciation_dictionary_id": settings.pronunciation_dictionary.pronunciation_dictionary_id,
+            "version_id": settings.pronunciation_dictionary.version_id
+        }
+    
     settings_dict = {
         "mode": settings.mode,
         "voice_id": settings.voice_id,
         "model_id": settings.model_id,
         "output_format": settings.output_format,
         "chunk_size": settings.chunk_size,
+        "pronunciation_dictionary": pronunciation_dict,
         "voice_settings": {
             "stability": settings.voice_settings.stability,
             "similarity_boost": settings.voice_settings.similarity_boost,
