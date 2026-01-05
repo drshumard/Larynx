@@ -132,18 +132,14 @@ sudo nginx -t && sudo systemctl reload nginx
 echo "✅ Nginx configured (frontend served as static files)"
 
 # Start backend with PM2 (as current user - ubuntu)
-cd $APP_DIR/backend
-source venv/bin/activate
+# Copy start script
+cp $APP_DIR/deploy/start-backend.sh $APP_DIR/backend/
+chmod +x $APP_DIR/backend/start-backend.sh
 
-pm2 start venv/bin/uvicorn \
+pm2 start $APP_DIR/backend/start-backend.sh \
     --name larynx-backend \
-    --cwd $APP_DIR/backend \
-    --interpreter none \
     --output $APP_DIR/logs/backend-out.log \
-    --error $APP_DIR/logs/backend-error.log \
-    -- server:app --host 127.0.0.1 --port $BACKEND_PORT
-
-deactivate
+    --error $APP_DIR/logs/backend-error.log
 
 # Wait and verify
 sleep 3
