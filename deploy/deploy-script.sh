@@ -61,6 +61,11 @@ source venv/bin/activate
 python cleanup.py
 deactivate
 
+# Setup hourly cleanup cron job if not exists
+CRON_CMD="0 * * * * cd $BACKEND_DIR && source venv/bin/activate && python cleanup.py >> $APP_DIR/logs/cleanup.log 2>&1"
+(crontab -l 2>/dev/null | grep -v "larynx.*cleanup.py" ; echo "$CRON_CMD") | crontab -
+echo -e "${GREEN}✅ Cleanup cron job configured${NC}"
+
 # Step 5: Restart PM2 processes
 echo -e "${YELLOW}🔄 Restarting PM2 processes...${NC}"
 cd $APP_DIR
