@@ -3,6 +3,8 @@ services:
     image: mongo:7.0
     container_name: larynx-mongodb
     restart: unless-stopped
+    ports:
+      - "27015:27017"  # Host:Container - expose on 27015 externally
     volumes:
       - mongodb_data:/data/db
     networks:
@@ -21,9 +23,9 @@ services:
     container_name: larynx-backend
     restart: unless-stopped
     ports:
-      - "8001:8001"
+      - "8005:8001"  # Host:Container - expose on 8005 externally, app runs on 8001
     environment:
-      - MONGO_URL=mongodb://mongodb:27017
+      - MONGO_URL=mongodb://mongodb:27017  # Internal Docker network uses container port
       - DB_NAME=tts_chunker
       - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
       - ELEVENLABS_VOICE_ID=${ELEVENLABS_VOICE_ID:-LNHBM9NjjOl44Efsdmtl}
@@ -37,7 +39,7 @@ services:
     networks:
       - larynx-network
     healthcheck:
-      test: curl -f http://localhost:8001/api/health || exit 1
+      test: curl -f http://localhost:8001/api/health || exit 1  # Internal port
       interval: 30s
       timeout: 10s
       retries: 3
@@ -48,11 +50,11 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - REACT_APP_BACKEND_URL=${REACT_APP_BACKEND_URL:-http://localhost:8001}
+        - REACT_APP_BACKEND_URL=${REACT_APP_BACKEND_URL:-http://localhost:8005}
     container_name: larynx-frontend
     restart: unless-stopped
     ports:
-      - "3000:80"
+      - "3005:80"  # Host:Container - expose on 3005 externally
     depends_on:
       - backend
     networks:
