@@ -28,13 +28,16 @@ function loadEnv(envPath) {
 
 const envVars = loadEnv('/var/www/larynx/backend/.env');
 
+// Use port 8002 to avoid conflicts with other apps
+const PORT = envVars.BACKEND_PORT || '8002';
+
 module.exports = {
   apps: [
     {
       name: 'larynx-backend',
       cwd: '/var/www/larynx/backend',
       script: 'venv/bin/uvicorn',
-      args: 'server:app --host 127.0.0.1 --port 8001',
+      args: `server:app --host 127.0.0.1 --port ${PORT}`,
       interpreter: 'none',
       env: {
         ...envVars,
