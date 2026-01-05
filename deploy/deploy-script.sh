@@ -63,9 +63,22 @@ deactivate
 
 # Step 5: Restart PM2 processes
 echo -e "${YELLOW}🔄 Restarting PM2 processes...${NC}"
-pm2 restart larynx-backend || pm2 start ecosystem.config.js
+cd $APP_DIR
 
-echo -e "${GREEN}✅ PM2 processes restarted${NC}"
+# Copy ecosystem config to app root if not there
+if [ ! -f "$APP_DIR/ecosystem.config.js" ]; then
+    cp $APP_DIR/deploy/ecosystem.config.js $APP_DIR/
+fi
+
+# Check if process exists, start or restart accordingly
+if pm2 describe larynx-backend > /dev/null 2>&1; then
+    pm2 restart larynx-backend --update-env
+else
+    echo -e "${YELLOW}First deploy - starting PM2 processes...${NC}"
+    pm2 start ecosystem.config.js
+fi
+
+echo -e "${GREEN}✅ PM2 processes running${NC}"
 
 # Step 6: Reload Nginx (if config changed)
 echo -e "${YELLOW}🔄 Testing and reloading Nginx...${NC}"
