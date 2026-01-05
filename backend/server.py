@@ -101,6 +101,11 @@ class JobResponse(BaseModel):
     updated_at: str
 
 
+class PronunciationDictionary(BaseModel):
+    pronunciation_dictionary_id: str = Field(default="", description="Pronunciation dictionary ID")
+    version_id: str = Field(default="", description="Dictionary version ID (optional, uses latest if empty)")
+
+
 class VoiceSettings(BaseModel):
     stability: float = Field(0.5, ge=0, le=1, description="Controls consistency (0-1)")
     similarity_boost: float = Field(1, ge=0, le=1, description="Voice similarity (0-1)")
@@ -121,6 +126,7 @@ class TTSSettings(BaseModel):
     model_id: str = Field(default="eleven_v3", description="ElevenLabs model ID")
     output_format: str = Field(default="mp3_44100_128", description="Audio output format (chunking mode)")
     chunk_size: int = Field(default=DEFAULT_CHUNK_SIZE, ge=MIN_CHUNK_SIZE, le=MAX_CHUNK_SIZE, description="Chunk size in characters for chunking mode (500-20000)")
+    pronunciation_dictionary: Optional[PronunciationDictionary] = Field(default=None, description="Pronunciation dictionary locator")
     voice_settings: VoiceSettings = Field(default_factory=VoiceSettings)
     studio_settings: StudioSettings = Field(default_factory=StudioSettings)
 
@@ -131,6 +137,7 @@ class TTSSettingsUpdate(BaseModel):
     model_id: Optional[str] = None
     output_format: Optional[str] = None
     chunk_size: Optional[int] = None
+    pronunciation_dictionary: Optional[PronunciationDictionary] = None
     voice_settings: Optional[VoiceSettings] = None
     studio_settings: Optional[StudioSettings] = None
 
@@ -142,6 +149,7 @@ DEFAULT_TTS_SETTINGS = {
     "model_id": ELEVENLABS_MODEL,
     "output_format": "mp3_44100_128",
     "chunk_size": DEFAULT_CHUNK_SIZE,
+    "pronunciation_dictionary": None,
     "voice_settings": {
         "stability": 0.5,
         "similarity_boost": 1,
