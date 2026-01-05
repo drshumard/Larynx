@@ -1,0 +1,37 @@
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv
+env
+.venv
+*.egg-info
+.eggs
+.pytest_cache
+.coverage
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Env files (we use docker env vars)
+.env
+.env.*
+
+# Storage (mounted as volume)
+storage/
+
+# Logs
+*.log
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore

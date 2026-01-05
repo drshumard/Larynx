@@ -1,0 +1,61 @@
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile*
+docker-compose*
+.docker
+
+# Node
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv
+env
+.venv
+*.egg-info
+.eggs
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs
+
+# Test
+coverage
+.pytest_cache
+.coverage
+htmlcov
+
+# Build
+build
+dist
+*.egg
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Misc
+*.md
+!README.md
+LICENSE
+Makefile
