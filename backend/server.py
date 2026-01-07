@@ -411,7 +411,7 @@ def merge_audio_chunks(audio_chunks: list[bytes]) -> tuple[bytes, float]:
                 pass
 
 
-async def send_webhook(job_id: str, name: str, audio_url: str, status: str, text_length: int, chunk_count: int, external_job_id: str = None, files_url: str = None, callback_data: str = None):
+async def send_webhook(job_id: str, name: str, audio_url: str, status: str, text_length: int, chunk_count: int, external_job_id: str = None, files_url: str = None, callback_data: str = None, google_drive_url: str = None, google_drive_file_id: str = None):
     """Send webhook notification on job completion."""
     if not WEBHOOK_URL:
         print("No webhook URL configured, skipping...")
@@ -434,6 +434,10 @@ async def send_webhook(job_id: str, name: str, audio_url: str, status: str, text
         payload["filesUrl"] = files_url
     if callback_data:
         payload["callbackData"] = callback_data
+    if google_drive_url:
+        payload["googleDriveUrl"] = google_drive_url
+    if google_drive_file_id:
+        payload["googleDriveFileId"] = google_drive_file_id
     
     try:
         async with httpx.AsyncClient() as http_client:
