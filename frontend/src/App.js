@@ -600,6 +600,11 @@ const JobDetailsPage = () => {
             </div>
           </div>
           <div className="detail-header-right">
+            {job.status === 'failed' && (
+              <button className="btn primary" onClick={handleRetry} data-testid="retry-job-btn">
+                <RefreshCw /> Retry Job
+              </button>
+            )}
             {isDone && (
               <button className="btn primary" onClick={handleDownload}>
                 <Download /> Download MP3
