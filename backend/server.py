@@ -5,6 +5,7 @@ FastAPI server for processing long texts into speech using ElevenLabs API
 
 import os
 import re
+import json
 import asyncio
 import httpx
 import subprocess
@@ -26,6 +27,11 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 from elevenlabs import ElevenLabs
 from elevenlabs.types import PronunciationDictionaryVersionLocator
+
+# Google Drive imports
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
 
 # Get ffmpeg path from imageio-ffmpeg (aarch64 compatible)
 import imageio_ffmpeg
