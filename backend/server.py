@@ -843,7 +843,8 @@ async def process_tts_job(job_id: str):
             audio_url=full_audio_url,
             status="completed",
             text_length=job["text_length"],
-            chunk_count=chunk_count
+            chunk_count=chunk_count,
+            webhook_data=job.get("webhook_data")
         )
         
     except Exception as e:
