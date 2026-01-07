@@ -48,8 +48,11 @@ ELEVENLABS_VOICE_ID = os.environ.get("ELEVENLABS_VOICE_ID", "LNHBM9NjjOl44Efsdmt
 ELEVENLABS_MODEL = os.environ.get("ELEVENLABS_MODEL", "eleven_multilingual_v2")
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "")
 APP_DOMAIN = os.environ.get("APP_DOMAIN", "http://localhost:8001")
-STORAGE_DIR = os.environ.get("STORAGE_DIR", "/app/backend/storage")
-GOOGLE_CREDENTIALS_PATH = os.environ.get("GOOGLE_CREDENTIALS_PATH", "/app/backend/google-credentials.json")
+
+# Use paths relative to this script's location for defaults
+SCRIPT_DIR = Path(__file__).resolve().parent
+STORAGE_DIR = os.environ.get("STORAGE_DIR", str(SCRIPT_DIR / "storage"))
+GOOGLE_CREDENTIALS_PATH = os.environ.get("GOOGLE_CREDENTIALS_PATH", str(SCRIPT_DIR / "google-credentials.json"))
 
 # Debug: Print API key status
 print(f"ElevenLabs API Key loaded: {'Yes' if ELEVENLABS_API_KEY else 'No'}")
