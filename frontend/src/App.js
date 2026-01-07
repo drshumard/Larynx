@@ -1647,6 +1647,11 @@ const DashboardPage = () => {
                                   </button>
                                 </>
                               )}
+                              {isFailed && (
+                                <button className="action-btn retry" onClick={(e) => handleRetry(job.id, e)} data-testid="job-retry-button" title="Retry job">
+                                  <RefreshCw />
+                                </button>
+                              )}
                               <button className="action-btn delete" onClick={(e) => handleDelete(job.id, e)} data-testid="job-delete-button">
                                 <Trash2 />
                               </button>
