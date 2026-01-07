@@ -451,7 +451,7 @@ async def send_webhook(job_id: str, name: str, audio_url: str, status: str, text
 
 def upload_to_google_drive(file_path: str, folder_id: str, file_name: str) -> dict:
     """
-    Upload a file to Google Drive folder.
+    Upload a file to Google Drive folder (supports Shared Drives).
     Returns dict with file_id and web_view_link.
     """
     try:
@@ -459,10 +459,10 @@ def upload_to_google_drive(file_path: str, folder_id: str, file_name: str) -> di
             print(f"Google credentials file not found: {GOOGLE_CREDENTIALS_PATH}")
             return None
         
-        # Authenticate with service account
+        # Authenticate with service account - use full drive scope for Shared Drive access
         credentials = service_account.Credentials.from_service_account_file(
             GOOGLE_CREDENTIALS_PATH,
-            scopes=['https://www.googleapis.com/auth/drive.file']
+            scopes=['https://www.googleapis.com/auth/drive']
         )
         
         # Build the Drive service
@@ -474,12 +474,13 @@ def upload_to_google_drive(file_path: str, folder_id: str, file_name: str) -> di
             'parents': [folder_id]
         }
         
-        # Upload the file
+        # Upload the file with supportsAllDrives for Shared Drive compatibility
         media = MediaFileUpload(file_path, mimetype='audio/mpeg', resumable=True)
         file = service.files().create(
             body=file_metadata,
             media_body=media,
-            fields='id, webViewLink, webContentLink'
+            fields='id, webViewLink, webContentLink',
+            supportsAllDrives=True  # Required for Shared Drives
         ).execute()
         
         print(f"Uploaded to Google Drive: {file.get('id')}")
