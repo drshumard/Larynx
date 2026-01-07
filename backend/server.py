@@ -99,6 +99,7 @@ class JobCreate(BaseModel):
     external_job_id: Optional[str] = Field(None, description="Your external job ID - passed through to webhook")
     files_url: Optional[str] = Field(None, description="Files URL - passed through to webhook")
     callback_data: Optional[str] = Field(None, description="Any extra data - passed through to webhook")
+    folder_id: Optional[str] = Field(None, description="Google Drive folder ID to upload audio to")
 
 
 class JobResponse(BaseModel):
