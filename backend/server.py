@@ -1077,6 +1077,7 @@ async def create_job(job_data: JobCreate, background_tasks: BackgroundTasks):
         "processed_chunks": 0,
         "chunks": chunks,
         "chunk_requests": chunk_requests,
+        "webhook_data": job_data.webhook_data.dict() if job_data.webhook_data else None,
         "tts_config": {
             "api": "ElevenLabs",
             "mode": mode,
