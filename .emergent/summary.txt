@@ -1,285 +1,114 @@
 <analysis>**original_problem_statement:**
-The user wants to build a full-stack application named Larynx TTS. The core functionality involves converting long text into a single MP3 file using the ElevenLabs TTS API. The application should feature a sophisticated frontend for job submission and a dashboard for monitoring job progress and details. The project has evolved through several iterations, with the user providing detailed feedback on UI/UX, moving from a glassmorphism style to a professional enterprise SaaS aesthetic.
+The user wants to build a full-stack application named Larynx TTS.
 
 **PRODUCT REQUIREMENTS:**
-1.  **Core Functionality:** Accept text and generate a single audio file.
-2.  **Dual-Mode TTS:** The application must support two methods for audio generation, selectable via a universal setting:
-    *   **Chunking Mode:** Manually split long text, process each chunk via the ElevenLabs TTS API (), and concatenate the resulting audio files.
-    *   **Studio Mode:** Use the ElevenLabs Studio API () to process long-form content in a single project-based workflow, which handles chunking automatically.
-3.  **Frontend UI:**
+1.  **Core Functionality:** Convert long text into a single MP3 file using the ElevenLabs TTS API.
+2.  **Dual-Mode TTS:** The application must support two selectable methods for audio generation:
+    *   **Chunking Mode:** Manually split long text, process each chunk via the ElevenLabs TTS API, and concatenate the resulting audio files. This mode must support a configurable chunk size (500-20,000 characters).
+    *   **Studio Mode:** Use the ElevenLabs Studio API to process long-form content in a single workflow.
+3.  **Pronunciation Dictionary:** Support the use of ElevenLabs Pronunciation Dictionaries by allowing a Dictionary ID and Version ID to be configured in the settings.
+4.  **Frontend UI:**
     *   An enterprise-grade SaaS interface for submitting and monitoring jobs.
     *   A dashboard to display all jobs with their status.
-    *   A dedicated job details page for each job, accessible via SPA routing.
-    *   The details page must show the full configuration used for the job, including the TTS mode.
-    *   For jobs created in Chunking mode, the page must display the full API request for each chunk and provide an individual audio player for each chunk's output.
-4.  **Persistent Settings:**
-    *   A settings modal that allows the user to configure TTS parameters for both Chunking and Studio modes.
-    *   These settings must be saved persistently in the database and applied to all subsequent jobs.
+    *   A dedicated job details page for each job.
+5.  **Persistent Settings:**
+    *   A settings modal that allows the user to configure all TTS parameters for both Chunking and Studio modes, including pronunciation dictionaries. Settings must be saved persistently in the database.
+6.  **Webhook Integration:**
+    *   On job completion, send a webhook to a configured URL.
+    *   The system must accept arbitrary flat key-value data from the initial API request (e.g., , , ) and pass this data through to the final webhook payload.
+7.  **Google Drive Upload:**
+    *   The API request can include a  for a Google Drive folder.
+    *   If  is provided, the final generated audio file must be uploaded to that specific Google Drive folder. The webhook payload should then include the URL to the file in Google Drive.
+8.  **Production Deployment:**
+    *   The application must be deployable to a Lightsail server at a specific domain () in the  directory.
+    *   The deployment must use  for the backend process and  as a reverse proxy for the frontend and API.
+    *   The deployment process must be managed by a simple shell script ().
+    *   All configurable parameters (domain, ports, API keys, DB credentials) must be exposed in a  file.
+9.  **File Management:**
+    *   A cron job must be set up to automatically delete generated audio files from the server's local storage after 48 hours to conserve space.
 
 **User's preferred language**: English
 
 **what currently exists?**
-A full-stack FARM (FastAPI, React, MongoDB) application is in place. The backend supports two distinct TTS generation modes: the original Chunking mode and the newly implemented Studio mode. The active mode is determined by a persistent setting in the MongoDB database.
+A full-stack FARM (FastAPI, React, MongoDB) application. The backend supports dual-mode TTS (Chunking & Studio), persistent settings, pronunciation dictionaries, and custom webhook data. The frontend is a React SPA with a dashboard and job detail views.
 
-The frontend is a React Single-Page Application (SPA) with an enterprise-grade SaaS design. It features a main dashboard for job overview and a separate, route-based page for detailed job inspection. A comprehensive settings modal allows the user to switch between Chunking and Studio modes and configure all relevant parameters for each.
+A complete  and  based deployment system has been created with scripts (, ) located in the  directory. This system is designed to run on the user's Lightsail server, handling backend processes via  and serving the frontend as static files via . It also includes a cron job for cleaning up old audio files.
+
+The logic for uploading completed audio files to Google Drive using a service account has been added to the backend.
 
 **Last working item**:
-The agent was implementing the Studio Mode feature as an alternative to the existing Chunking workflow.
+The agent was implementing the Google Drive upload feature.
 
-- **Last item agent was working:** The agent has completed the implementation of the Studio Mode. This included backend changes to add a new processing pipeline using the ElevenLabs Studio API and frontend updates to the settings modal to include a Studio tab with the relevant configuration options. The agent successfully updated the settings to use Studio mode.
+- **Last item agent was working:** The agent was debugging the newly added Google Drive upload functionality. After adding the necessary libraries (), creating the upload logic in , and saving the user-provided service account credentials, a test on the local development server failed. The log  indicated that the backend could not find the credentials file. The agent identified that the path in the local  file was incorrect and was in the process of fixing it.
 - **Status:** IN PROGRESS
 - **Agent Testing Done:** N
-- **Which testing method agent to use?** manual testing. The agent needs to create a new job while Studio mode is active and verify the entire end-to-end process. This involves checking backend logs, monitoring job status in the database/UI, and confirming the final audio output.
+- **Which testing method agent to use?** backend testing agent. The agent needs to create a new job via a  command, providing a . Then, it must verify the backend logs for successful upload messages and check the final webhook payload to ensure it contains the .
 - **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
-- **Issue 1:** (P0) Test and Verify Studio Mode End-to-End Functionality.
+- **Issue 1:** (P0) Finalize and Test Google Drive Upload Feature.
+- **Issue 2:** (P1) Stabilize and Verify Production Deployment.
 
-  **Issues Detail:**
-  - **Issue 1:** Test and Verify Studio Mode End-to-End Functionality.
-     - **Attempted fixes:** The agent has written all the necessary backend logic ( function) and frontend UI components (Studio settings tab). The settings have been successfully saved with . However, the actual creation of a job in this mode has not been attempted.
-     - **Next debug checklist:**
-        1.  Create a new job using the frontend Create Job form.
-        2.  Immediately monitor the backend logs (==> /var/log/supervisor/backend.err.log <==
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [416]
-INFO:     Stopping reloader process [49]
-INFO:     Will watch for changes in these directories: ['/app/backend']
-INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
-INFO:     Started reloader process [632] using WatchFiles
-INFO:     Started server process [634]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Will watch for changes in these directories: ['/app/backend']
-INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
-INFO:     Started reloader process [49] using WatchFiles
-INFO:     Started server process [86]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Will watch for changes in these directories: ['/app/backend']
-INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
-INFO:     Started reloader process [49] using WatchFiles
-INFO:     Started server process [85]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [85]
-INFO:     Started server process [507]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [507]
-INFO:     Started server process [607]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [607]
-INFO:     Started server process [672]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [672]
-INFO:     Started server process [745]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [745]
-INFO:     Started server process [814]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [814]
-INFO:     Stopping reloader process [49]
-INFO:     Will watch for changes in these directories: ['/app/backend']
-INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
-INFO:     Started reloader process [1104] using WatchFiles
-INFO:     Started server process [1106]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Will watch for changes in these directories: ['/app/backend']
-INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
-INFO:     Started reloader process [48] using WatchFiles
-INFO:     Started server process [77]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Will watch for changes in these directories: ['/app/backend']
-INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
-INFO:     Started reloader process [48] using WatchFiles
-INFO:     Started server process [85]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Will watch for changes in these directories: ['/app/backend']
-INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
-INFO:     Started reloader process [48] using WatchFiles
-INFO:     Started server process [86]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Will watch for changes in these directories: ['/app/backend']
-INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
-INFO:     Started reloader process [48] using WatchFiles
-INFO:     Started server process [85]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
+**Issues Detail:**
+- **Issue 1:** Finalize and Test Google Drive Upload Feature.
+  - **Attempted fixes:** The agent has written all the necessary backend code in , installed dependencies, and saved the credentials file. The last action was attempting to fix the credentials file path for the local development environment.
+  - **Next debug checklist:**
+    1.  Ensure the  in  points correctly to .
+    2.  Restart the backend service.
+    3.  Create a new job via the API, including a valid .
+    4.  Monitor backend logs () for Uploading to Google Drive..., Upload successful, and the resulting file URL.
+    5.  Verify that the webhook sent upon completion includes the  field in its payload.
+  - **Why fix this issue and what will be achieved with the fix?** This will complete the final feature request from the user, making the application feature-complete according to the latest requirements.
+  - **Status:** IN PROGRESS
+  - **Is recurring issue?** N
+  - **Should Test frontend/backend/both after fix?** backend
+  - **Blocked on other issue:** None
 
-==> /var/log/supervisor/backend.out.log <==
-INFO:     10.64.130.41:47982 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.135.219:43544 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.128.8:51644 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.128.53:57320 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.128.8:51644 - "GET /api/jobs/69529e05e6c1a0362bef3076/download HTTP/1.1" 200 OK
-INFO:     10.64.128.8:51644 - "GET /api/jobs/694cc923d45e695034b85743/download HTTP/1.1" 200 OK
-INFO:     10.64.128.53:57320 - "GET /api/jobs/694b491c6a149d4661331b98/download HTTP/1.1" 200 OK
-INFO:     10.64.128.6:45466 - "GET /api/jobs/694cc7b976532b16f074137f/download HTTP/1.1" 200 OK
-INFO:     10.64.128.53:57334 - "GET /api/jobs/694cc08a38fd99ef53a27ea7/download HTTP/1.1" 200 OK
-INFO:     10.64.128.53:57350 - "GET /api/jobs/6952f8b46f3c29fcd678d698/download HTTP/1.1" 200 OK
-INFO:     10.64.128.8:51650 - "GET /api/jobs/694b69987ff2a52a3f412b08/download HTTP/1.1" 200 OK
-INFO:     10.64.128.8:51664 - "GET /api/jobs/6952f8486f3c29fcd678d697/download HTTP/1.1" 200 OK
-INFO:     10.64.128.8:51674 - "GET /api/jobs/694cc62b119eae9d02cbc286/download HTTP/1.1" 200 OK
-INFO:     10.64.128.53:57358 - "GET /api/jobs/6952f48e9adc6842c16427b0/download HTTP/1.1" 200 OK
-INFO:     10.64.128.6:45480 - "GET /api/jobs/694b3ff9fc239978e94fa26b/download HTTP/1.1" 200 OK
-INFO:     10.64.128.6:45512 - "GET /api/jobs/694ca64c38a83f705a1db758/download HTTP/1.1" 200 OK
-INFO:     10.64.128.6:45536 - "GET /api/jobs/694cc65b20ba904ba3d15957/download HTTP/1.1" 200 OK
-INFO:     10.64.128.53:57360 - "GET /api/jobs/694b69b77ff2a52a3f412b09/download HTTP/1.1" 200 OK
-INFO:     10.64.128.8:51678 - "GET /api/jobs/694cc606119eae9d02cbc285/download HTTP/1.1" 200 OK
-INFO:     10.64.128.6:45544 - "GET /api/jobs/694cbaee38fd99ef53a27ea6/download HTTP/1.1" 200 OK
-INFO:     10.64.128.6:45526 - "GET /api/jobs/694cc872d45e695034b85742/download HTTP/1.1" 200 OK
-INFO:     10.64.128.6:45496 - "GET /api/jobs/694b438afc239978e94fa26c/download HTTP/1.1" 200 OK
-INFO:     10.64.128.8:51686 - "GET /api/jobs/694b5ac1d00a69eba71989c3/download HTTP/1.1" 200 OK
-INFO:     10.64.128.53:57362 - "GET /api/jobs/694cc812cb5b78d43b2de24a/download HTTP/1.1" 200 OK
-INFO:     10.64.130.136:51736 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.135.220:56432 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.130.41:53678 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.135.142:35998 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.135.220:56432 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.130.41:53678 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.135.142:35998 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.128.6:45526 - "GET /api/jobs/6952f48e9adc6842c16427b0/download HTTP/1.1" 200 OK
-INFO:     10.64.130.136:51736 - "GET /api/jobs/6952f8486f3c29fcd678d697/download HTTP/1.1" 200 OK
-INFO:     10.64.135.220:56432 - "GET /api/jobs/694cc65b20ba904ba3d15957/download HTTP/1.1" 200 OK
-INFO:     10.64.135.219:38418 - "GET /api/jobs/694cc923d45e695034b85743/download HTTP/1.1" 200 OK
-INFO:     10.64.135.237:59702 - "GET /api/jobs/694cc872d45e695034b85742/download HTTP/1.1" 200 OK
-INFO:     10.64.135.220:35684 - "GET /api/jobs/69529e05e6c1a0362bef3076/download HTTP/1.1" 200 OK
-INFO:     10.64.130.136:52926 - "GET /api/jobs/694cc812cb5b78d43b2de24a/download HTTP/1.1" 200 OK
-INFO:     10.64.130.41:53678 - "GET /api/jobs/694b39cab132c74aad09473b/download HTTP/1.1" 200 OK
-INFO:     10.64.128.8:51674 - "GET /api/jobs/694cc606119eae9d02cbc285/download HTTP/1.1" 200 OK
-INFO:     10.64.135.237:59712 - "GET /api/jobs/694cc08a38fd99ef53a27ea7/download HTTP/1.1" 200 OK
-INFO:     10.64.130.40:37074 - "GET /api/jobs/694b491c6a149d4661331b98/download HTTP/1.1" 200 OK
-INFO:     10.64.128.6:45466 - "GET /api/jobs/694b438afc239978e94fa26c/download HTTP/1.1" 200 OK
-INFO:     10.64.128.8:51678 - "GET /api/jobs/694b69747ff2a52a3f412b07/download HTTP/1.1" 200 OK
-INFO:     10.64.128.53:57362 - "GET /api/jobs/694cc62b119eae9d02cbc286/download HTTP/1.1" 200 OK
-INFO:     10.64.135.219:38426 - "GET /api/jobs/694b69b77ff2a52a3f412b09/download HTTP/1.1" 200 OK
-INFO:     10.64.135.237:59718 - "GET /api/jobs/694ca64c38a83f705a1db758/download HTTP/1.1" 200 OK
-INFO:     10.64.128.53:57378 - "GET /api/jobs/694cbaee38fd99ef53a27ea6/download HTTP/1.1" 200 OK
-INFO:     10.64.130.40:37080 - "GET /api/jobs/6952f8b46f3c29fcd678d698/download HTTP/1.1" 200 OK
-INFO:     10.64.130.41:53678 - "GET /api/jobs/694cc7b976532b16f074137f/download HTTP/1.1" 200 OK
-INFO:     10.64.135.142:35998 - "GET /api/jobs/694b69987ff2a52a3f412b08/download HTTP/1.1" 200 OK
-INFO:     10.64.130.40:37084 - "GET /api/jobs/694b3ff9fc239978e94fa26b/download HTTP/1.1" 200 OK
-INFO:     10.64.130.41:53682 - "GET /api/jobs/694b5ac1d00a69eba71989c3/download HTTP/1.1" 200 OK
-INFO:     10.64.135.142:36004 - "GET /api/jobs/694b363662e865d0f0bf1756/download HTTP/1.1" 200 OK
-INFO:     10.64.130.136:52926 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.130.136:52926 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.130.40:37074 - "GET /api/jobs/6953d395bae3e9a2dd670835/details HTTP/1.1" 200 OK
-INFO:     10.64.135.219:38442 - "GET /api/jobs/6953d395bae3e9a2dd670835/details HTTP/1.1" 200 OK
-INFO:     10.64.135.220:56432 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.135.220:56432 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.135.237:59718 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.128.53:60746 - "GET /api/jobs/6952f8b46f3c29fcd678d698/download HTTP/1.1" 200 OK
-INFO:     10.64.135.237:59718 - "GET /api/jobs/694cc923d45e695034b85743/download HTTP/1.1" 200 OK
-INFO:     10.64.130.136:52938 - "GET /api/jobs/694cc62b119eae9d02cbc286/download HTTP/1.1" 200 OK
-INFO:     10.64.135.219:38456 - "GET /api/jobs/6952f8486f3c29fcd678d697/download HTTP/1.1" 200 OK
-INFO:     10.64.128.53:60756 - "GET /api/jobs/694cc812cb5b78d43b2de24a/download HTTP/1.1" 200 OK
-INFO:     10.64.135.220:56432 - "GET /api/jobs/694b39cab132c74aad09473b/download HTTP/1.1" 200 OK
-INFO:     10.64.130.136:52950 - "GET /api/jobs/694cc7b976532b16f074137f/download HTTP/1.1" 200 OK
-INFO:     10.64.128.8:49908 - "GET /api/jobs/694cc872d45e695034b85742/download HTTP/1.1" 200 OK
-INFO:     10.64.135.220:35694 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.128.53:60764 - "GET /api/jobs/694cc65b20ba904ba3d15957/download HTTP/1.1" 200 OK
-INFO:     10.64.128.6:54346 - "GET /api/jobs/694cc08a38fd99ef53a27ea7/download HTTP/1.1" 200 OK
-INFO:     10.64.128.53:60746 - "GET /api/jobs/694b69987ff2a52a3f412b08/download HTTP/1.1" 200 OK
-INFO:     10.64.135.237:59736 - "GET /api/jobs/694b69747ff2a52a3f412b07/download HTTP/1.1" 200 OK
-INFO:     10.64.135.237:59722 - "GET /api/jobs/694b438afc239978e94fa26c/download HTTP/1.1" 200 OK
-INFO:     10.64.128.6:54356 - "GET /api/jobs/694b5ac1d00a69eba71989c3/download HTTP/1.1" 200 OK
-INFO:     10.64.130.136:52962 - "GET /api/jobs/694b3ff9fc239978e94fa26b/download HTTP/1.1" 200 OK
-INFO:     10.64.128.8:49912 - "GET /api/jobs/694ca64c38a83f705a1db758/download HTTP/1.1" 200 OK
-INFO:     10.64.135.219:38460 - "GET /api/jobs/69529e05e6c1a0362bef3076/download HTTP/1.1" 200 OK
-INFO:     10.64.135.219:38478 - "GET /api/jobs/694b69b77ff2a52a3f412b09/download HTTP/1.1" 200 OK
-INFO:     10.64.135.219:38468 - "GET /api/jobs/6952f48e9adc6842c16427b0/download HTTP/1.1" 200 OK
-INFO:     10.64.135.220:35700 - "GET /api/jobs/694cbaee38fd99ef53a27ea6/download HTTP/1.1" 200 OK
-INFO:     10.64.135.237:59744 - "GET /api/jobs/694b491c6a149d4661331b98/download HTTP/1.1" 200 OK
-INFO:     10.64.128.8:49908 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.135.237:59736 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.128.8:49908 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.130.136:50200 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.135.219:41300 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.135.220:50572 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.128.8:53826 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.128.53:45884 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.130.136:56830 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.130.136:56830 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.128.53:45900 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.128.8:37174 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.135.219:38262 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.128.6:38398 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.135.220:55038 - "GET /api/jobs HTTP/1.1" 200 OK
-INFO:     10.64.135.237:60222 - "GET /api/jobs HTTP/1.1" 200 OK) for output from the  function. Look for logs indicating Creating Studio project, Polling project status, and Downloading final audio.
-        3.  Check the job's status on the UI dashboard. It should transition through states like , , and finally .
-        4.  If the job fails, inspect the backend logs for HTTP error codes (e.g., 422) from the ElevenLabs Studio API and analyze the error response.
-        5.  Once the job is complete, navigate to the job details page and verify that the final audio can be played and downloaded.
-     - **Why fix this issue and what will be achieved with the fix?** This will validate that the user's latest and most complex feature request is fully functional, completing the dual-mode TTS system.
-     - **Status:** IN PROGRESS
-     - **Is recurring issue?** N
-     - **Should Test frontend/backend/both after fix?** both
-     - **Blocked on other issue:** None
+- **Issue 2:** Stabilize and Verify Production Deployment.
+  - **Attempted fixes:** The deployment process has been a major challenge, with numerous failed attempts due to port conflicts, user permissions ( vs. ), PM2 configuration errors, and most recently, MongoDB authentication failures. The agent has created several iterations of deployment scripts, culminating in [0;31mDo not run as root. Run as ubuntu user.[0m and . The last known blocker was a MongoDB authentication error ().
+  - **Next debug checklist:**
+    1.  The user needs to confirm that they have correctly created a MongoDB user and database and have updated the production  file with the correct  (including user, password, and ) and .
+    2.  Once the  is confirmed correct, the user should run the  script again.
+    3.  Check  for any new errors.
+    4.  If the backend runs successfully, perform a health check () and then test the full application via the public domain.
+  - **Why fix this issue and what will be achieved with the fix?** This will resolve a long-standing and frustrating series of problems, finally getting the application running in the user's target production environment.
+  - **Status:** BLOCKED (User confirmation of DB credentials pending)
+  - **Is recurring issue?** Y
+  - **Should Test frontend/backend/both after fix?** both
+  - **Blocked on other issue:** None
 
 **In progress Task List**:
-There are no other tasks in progress. The entire focus is on validating the new Studio Mode feature.
+There are no tasks separate from the issues listed above.
 
 **Upcoming and Future Tasks**
-There are no further tasks requested by the user at this time.
+There are no new features requested. The entire focus is on completing the Google Drive integration and achieving a stable production deployment.
 
 **Completed work in this session**
-- **UI Redesign:** Iteratively redesigned the entire frontend to an Enterprise SaaS aesthetic based on detailed user specifications.
-- **Job Detail Page:** Implemented a new SPA page () for detailed job inspection, moving away from a modal-based view.
-- **Per-Chunk Audio Players:** Added the ability to store and play audio for individual text chunks on the job details page.
-- **Persistent Settings Modal:** Created a settings modal to configure TTS parameters, which are saved in the database.
-- **ElevenLabs Studio Mode Integration:** Researched and implemented a new backend workflow using the ElevenLabs Studio API. This includes:
-  - New API logic in  to create and convert Studio projects.
-  - A new Studio tab in the frontend settings modal with specific configuration options.
-  - A universal mode selector in settings to switch between Chunking and Studio modes.
+- **Configurable Chunk Size:** Added a setting to control the character size for text chunking.
+- **Pronunciation Dictionary:** Implemented and debugged support for ElevenLabs Pronunciation Dictionaries.
+- **Production Deployment Scripts:** Created and iteratively debugged a full deployment system using , , and shell scripts for a Lightsail server.
+- **Audio File Cleanup:** Implemented a cron job via the deployment script to delete audio files older than 48 hours.
+- **Webhook Data Refactor:** Changed the custom webhook data from a nested object to flat key-value pairs to support the user's n8n workflow.
+- **PostHog Removal:** Removed the PostHog tracking snippet from .
+- **Google Drive Integration (Initial):** Added Python libraries and backend logic for uploading files to Google Drive.
 
 **Earlier issues found/mentioned but not fixed**
-None.
+All major issues have been addressed or are currently in progress. The deployment saga has been the most significant, with each specific error being fixed sequentially.
 
 **Known issue recurrence from previous fork**
-None.
+- **Issue recurrence in previous fork:** Deployment has been a recurring nightmare. The agent has repeatedly provided scripts that failed on the user's specific environment due to unforeseen issues like user permissions, port conflicts with another running application, and incorrect assumptions about the MongoDB setup.
+- **Recurrence count:** At least 5 major iterations of debugging the deployment.
+- **Status:** IN PROGRESS
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Backend:** FastAPI, Motor (async MongoDB driver),  background tasks,  for REST API calls to the Studio API, ElevenLabs Python SDK for the Chunking API.
-- **Frontend:** React, hooks, Axios,  for SPA navigation.
-- **Dual-Mode Architecture:** The application is architected to support two distinct TTS processing pipelines, selectable via a single setting.
+- **Backend:** FastAPI, Motor, , Uvicorn
+- **Frontend:** React, Craco
+- **Database:** MongoDB
+- **Deployment:** PM2 (for process management), Nginx (as reverse proxy), Cron (for scheduled cleanup), Bash scripting.
+- **3rd Party APIs:** ElevenLabs, Google Drive API (via service account).
 
 **key DB schema**
 -   **collection**: 
@@ -288,59 +117,67 @@ None.
     -   **document structure**: 
 
 **changes in tech stack**
--    was added to the frontend to enable Single-Page Application (SPA) routing.
--   The backend now uses the  library for direct REST API communication with the ElevenLabs Studio endpoints.
+-  and its dependencies were added for Google Drive integration.
 
 **All files of reference**
--   : Significantly updated to handle the dual-mode logic, new database models for settings, and the -based Studio API calls.
--   : Significantly updated to implement SPA routing with  and the new tabbed settings modal with conditional UI for Chunking vs. Studio modes.
--   : Updated with new styles for the mode selector tabs and other UI enhancements.
+-   : Heavily modified to add Google Drive upload logic, update webhook data structures, and handle new environment variables for deployment.
+-   : **Newly Created**. Contains the Google Cloud service account key.
+-   [0;31mDo not run as root. Run as ubuntu user.[0m: **Newly Created/Modified**. The primary script for deploying updates.
+-   : **Newly Created/Modified**. A utility script for complete re-installation.
+-   : **Newly Created**. A wrapper script to solve PM2's inability to directly run Python virtual environment commands.
+-   : **Newly Created/Modified**. Nginx site configuration.
+-   : Modified to remove the PostHog tracking script.
 
-**Areas that need refactoring**
--    is now extremely large and monolithic. It contains the logic for the entire application, including routing, multiple pages (Dashboard, Job Details), and complex components (Settings Modal). This file should be broken down into a proper React project structure with separate files for pages, components, and hooks to improve maintainability.
+**Areas that need refactoring**:
+-   Both  and  are extremely monolithic and difficult to maintain. They should be broken down into smaller, more focused modules and components.
+-   The deployment scripts have been patched together through many debug cycles and could be simplified and made more robust.
 
 **key api endpoints**
--   : Creates a new job, now dynamically uses either the Chunking or Studio processing function based on the active mode setting.
--   : Retrieves full job details.
--   : Serves audio for an individual chunk (Chunking mode only).
--   : Retrieves the current TTS settings, including the active mode.
+-   : Creates a new job. Now accepts , , , and .
+-   : Lists existing jobs.
 -   : Updates the TTS settings.
 
 **Critical Info for New Agent**
-- The application now operates in one of two modes: Chunking or Studio. The active mode is a universal setting stored in the database.
-- Your immediate and highest-priority task is to test the end-to-end functionality of the newly implemented Studio mode. The code is in place, but it has not been verified by an actual job run.
-- Be aware that the frontend code in  is monolithic. While it is functional, exercise caution when making changes. A future refactor to componentize the application would be beneficial.
+- **Deployment is fragile.** The user has another app running on the same server with a similar stack. Pay close attention to user permissions (run as ), port conflicts (backend must run on a non-conflicting port, currently ), and Nginx configurations.
+- **MongoDB requires authentication.** The user's production MongoDB is not open. The  and  variables in  MUST be set correctly with valid credentials for the application to start. This has been the source of the most recent errors.
+- The immediate next step is to finish debugging the Google Drive upload feature, which is coded but failed its first local test due to a pathing issue.
 
 **documents and test reports created in this job**
-None new in this session.
+- Multiple deployment-related scripts and configuration files have been created in the  directory.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  : can you add a player for all the chunks as wells in the job details so I can play every audio from every chunk
-2.  : currently we have the tts settings, you're going to add another request flow for the elevenlabs studio.. which means i can switch between the chunking which is this current setting with how it currently looks or studio, it can be a tab in the tts settings modal, chunking as one tab studio as another tab..
-3.  : if you need information about elevenlabs studio api let me know
-4.  : search for the latest ElevenLabs Studio API docs and the confirm with me before you implement
-5.  : 1. i want mode selector on settings modal because most of the jobs will come from an API not from the front end. so the settings modal needs to be applied universally. 2. yes same voice_id .. can i control speed of the generation? 3. i dont want to use any llm content generation but i want control so project api it is
-6.  : Implement
-
-The user has not sent any messages since approving the implementation plan for Studio mode. The next step is to test the implementation and report back.
+1.  : (Sends new test job to dev URL)
+2.  : Confirms the job ran but did not have the new  because the code wasn't deployed yet.
+3.  : n8n can't send nested data. Change  to be flat key-value pairs.
+4.  : Implements the change to flat key-value pairs.
+5.  : Add a  to the request and upload the final audio to that Google Drive folder.
+6.  : Asks for clarification on Google Drive auth (Service Account vs. OAuth).
+7.  : (Uploads a service account JSON file).
+8.  : Acknowledges the credentials and begins implementing the GDrive upload feature.
+9.  : (Writes all code, installs dependencies, saves credentials).
+10. : Reports the local test failed because the credentials path was wrong and is now fixing it.
 
 **Project Health Check:**
--   **Broken:** The new Studio mode is implemented but unverified. It should be considered potentially broken until a successful end-to-end test is completed.
--   **Mocked:** No mocked data or services are in use.
+-   **Broken:**
+    -   The production deployment is non-functional due to persistent MongoDB authentication errors that the user needs to resolve in their  file.
+    -   The new Google Drive upload feature is not yet verified and failed its initial local test.
+-   **Mocked:** None.
 
 **3rd Party Integrations**
--   **ElevenLabs API:** A user-provided API key is required. The application now interacts with two distinct parts of this API:
-    -   **Text-to-Speech API ():** Used for Chunking mode.
-    -   **Studio API ():** Used for Studio mode.
+-   **ElevenLabs API:** Requires a user-provided API key.
+-   **Google Drive API:** Uses a user-provided Service Account JSON file for authentication.
 
 **Testing status**
--   **Testing agent used after significant changes:** NO (for the latest Studio feature).
+-   **Testing agent used after significant changes:** NO
 -   **Troubleshoot agent used after agent stuck in loop:** NO
--   **Test files created:** None for the recent features.
+-   **Test files created:** None.
 -   **Known regressions:** None.
 
 **Credentials to test flow:**
-The ElevenLabs API key is located in the  file.
+-   **ElevenLabs API Key:** Located in .
+-   **Google Drive Service Account:** Located in .
+-   **MongoDB Credentials:** The user must provide these for the production environment in  on their server.
 
 **What agent forgot to execute**
-The agent has correctly implemented the code for the new Studio mode feature as requested. However, the final and most crucial step—testing the feature by creating a job—has not been performed. The agent stopped after confirming the settings were saved correctly, but before verifying the new processing pipeline.</analysis>
+- The agent repeatedly failed to create a working deployment script for the user's specific environment, leading to a long and frustrating back-and-forth. Key environmental details (user permissions, port usage, DB auth) were overlooked in initial attempts.
+- The agent initially missed the  tracking script in  after the user asked for it to be removed, which caused user frustration. It has since been removed.</analysis>
