@@ -731,6 +731,20 @@ async def process_studio_job(job_id: str):
             # Update job as completed
             audio_url = f"/api/jobs/{job_id}/download"
             full_audio_url = f"{APP_DOMAIN}{audio_url}"
+            
+            # Upload to Google Drive if folder_id is provided
+            google_drive_url = None
+            google_drive_file_id = None
+            folder_id = job.get("folder_id")
+            if folder_id and audio_path:
+                print(f"Uploading to Google Drive folder: {folder_id}")
+                file_name = f"{job.get('name', 'audio')}_{job_id}.mp3"
+                drive_result = upload_to_google_drive(audio_path, folder_id, file_name)
+                if drive_result:
+                    google_drive_url = drive_result.get('web_view_link')
+                    google_drive_file_id = drive_result.get('file_id')
+                    print(f"Google Drive upload successful: {google_drive_file_id}")
+            
             await db.jobs.update_one(
                 {"_id": ObjectId(job_id)},
                 {"$set": {
@@ -741,6 +755,8 @@ async def process_studio_job(job_id: str):
                     "audio_path": audio_path,
                     "audio_url": audio_url,
                     "duration_seconds": duration,
+                    "google_drive_url": google_drive_url,
+                    "google_drive_file_id": google_drive_file_id,
                     "updated_at": datetime.utcnow()
                 }}
             )
@@ -758,7 +774,9 @@ async def process_studio_job(job_id: str):
                     chunk_count=1,
                     external_job_id=job.get("external_job_id"),
                     files_url=job.get("files_url"),
-                    callback_data=job.get("callback_data")
+                    callback_data=job.get("callback_data"),
+                    google_drive_url=google_drive_url,
+                    google_drive_file_id=google_drive_file_id
                 )
     
     except Exception as e:
