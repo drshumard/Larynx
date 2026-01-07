@@ -695,7 +695,9 @@ async def process_studio_job(job_id: str):
                     status="completed",
                     text_length=len(text),
                     chunk_count=1,
-                    webhook_data=job.get("webhook_data")
+                    external_job_id=job.get("external_job_id"),
+                    files_url=job.get("files_url"),
+                    callback_data=job.get("callback_data")
                 )
     
     except Exception as e:
