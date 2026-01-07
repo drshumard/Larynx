@@ -1489,6 +1489,232 @@ async def delete_job(job_id: str):
     return {"message": "Job deleted successfully"}
 
 
+@app.post("/api/jobs/{job_id}/retry")
+async def retry_job(job_id: str, background_tasks: BackgroundTasks):
+    """
+    Retry a failed job from where it left off.
+    - For chunking mode: resumes from the first failed/pending chunk
+    - For studio mode: restarts the entire job
+    """
+    try:
+        job = await db.jobs.find_one({"_id": ObjectId(job_id)})
+    except:
+        raise HTTPException(status_code=400, detail="Invalid job ID")
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    if job["status"] not in ("failed",):
+        raise HTTPException(status_code=400, detail=f"Cannot retry job with status '{job['status']}'. Only failed jobs can be retried.")
+    
+    tts_config = job.get("tts_config", {})
+    mode = tts_config.get("mode", "chunking")
+    
+    if mode == "studio":
+        # For studio mode, restart entirely
+        await db.jobs.update_one(
+            {"_id": ObjectId(job_id)},
+            {"$set": {
+                "status": "queued",
+                "stage": "Retrying...",
+                "progress": 0,
+                "error": None,
+                "updated_at": datetime.utcnow()
+            }}
+        )
+        background_tasks.add_task(process_studio_job, job_id)
+        return {"message": "Studio job retry started", "job_id": job_id}
+    
+    # For chunking mode, resume from failed chunk
+    background_tasks.add_task(resume_tts_job, job_id)
+    
+    return {"message": "Job retry started - resuming from failed chunk", "job_id": job_id}
+
+
+async def resume_tts_job(job_id: str):
+    """Resume a failed TTS job from the first incomplete chunk."""
+    try:
+        job = await db.jobs.find_one({"_id": ObjectId(job_id)})
+        if not job:
+            print(f"Job {job_id} not found for resume")
+            return
+        
+        tts_settings = job.get("tts_config", DEFAULT_TTS_SETTINGS)
+        chunks = job["chunks"]
+        chunk_count = len(chunks)
+        chunk_requests = job.get("chunk_requests", [])
+        
+        # Find first incomplete chunk
+        start_chunk = 0
+        for i, cr in enumerate(chunk_requests):
+            if cr.get("status") == "completed" and cr.get("audio_path") and os.path.exists(cr.get("audio_path", "")):
+                start_chunk = i + 1
+            else:
+                break
+        
+        print(f"Resuming job {job_id} from chunk {start_chunk + 1}/{chunk_count}")
+        
+        # Update job status
+        await db.jobs.update_one(
+            {"_id": ObjectId(job_id)},
+            {"$set": {
+                "status": "transcribing",
+                "stage": f"Resuming from chunk {start_chunk + 1}...",
+                "error": None,
+                "updated_at": datetime.utcnow()
+            },
+            "$unset": {"failed_at_chunk": ""}}
+        )
+        
+        # Initialize ElevenLabs client
+        eleven_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
+        
+        # Load existing audio chunks
+        audio_chunks = []
+        for i in range(start_chunk):
+            chunk_audio_path = os.path.join(STORAGE_DIR, f"{job_id}_chunk_{i}.mp3")
+            if os.path.exists(chunk_audio_path):
+                with open(chunk_audio_path, "rb") as f:
+                    audio_chunks.append(f.read())
+            else:
+                print(f"Warning: Missing audio for chunk {i}, will reprocess")
+                start_chunk = min(start_chunk, i)
+                audio_chunks = audio_chunks[:i]
+                break
+        
+        # Process remaining chunks
+        for i in range(start_chunk, chunk_count):
+            chunk_text = chunks[i]
+            print(f"Processing chunk {i + 1}/{chunk_count} for job {job_id} (resume)")
+            
+            # Update chunk status to processing
+            await db.jobs.update_one(
+                {"_id": ObjectId(job_id)},
+                {"$set": {
+                    f"chunk_requests.{i}.status": "processing",
+                    "updated_at": datetime.utcnow()
+                }}
+            )
+            
+            try:
+                audio_data = await tts_chunk_with_retry(eleven_client, chunk_text, tts_settings, i, job_id)
+                audio_chunks.append(audio_data)
+                
+                # Save individual chunk audio file
+                chunk_audio_path = os.path.join(STORAGE_DIR, f"{job_id}_chunk_{i}.mp3")
+                with open(chunk_audio_path, "wb") as f:
+                    f.write(audio_data)
+                
+                # Update progress
+                progress = int(((i + 1) / chunk_count) * 85)
+                await db.jobs.update_one(
+                    {"_id": ObjectId(job_id)},
+                    {
+                        "$set": {
+                            "processed_chunks": i + 1,
+                            "progress": progress,
+                            "stage": f"Converting to speech ({i + 1}/{chunk_count})...",
+                            "updated_at": datetime.utcnow(),
+                            f"chunk_requests.{i}.status": "completed",
+                            f"chunk_requests.{i}.processed_at": datetime.utcnow().isoformat(),
+                            f"chunk_requests.{i}.audio_path": chunk_audio_path,
+                            f"chunk_requests.{i}.audio_url": f"/api/jobs/{job_id}/chunks/{i}/audio"
+                        }
+                    }
+                )
+            except Exception as e:
+                await db.jobs.update_one(
+                    {"_id": ObjectId(job_id)},
+                    {
+                        "$set": {
+                            "status": "failed",
+                            "error": str(e),
+                            f"chunk_requests.{i}.status": "failed",
+                            f"chunk_requests.{i}.error": str(e),
+                            "failed_at_chunk": i,
+                            "updated_at": datetime.utcnow()
+                        }
+                    }
+                )
+                print(f"Resume failed at chunk {i + 1}: {e}")
+                return
+        
+        # Merge audio chunks
+        print(f"Merging {len(audio_chunks)} audio chunks for job {job_id}")
+        await db.jobs.update_one(
+            {"_id": ObjectId(job_id)},
+            {"$set": {"status": "merging", "stage": "Merging audio chunks...", "progress": 90, "updated_at": datetime.utcnow()}}
+        )
+        
+        merged_audio, duration = await asyncio.to_thread(
+            merge_audio_chunks, audio_chunks
+        )
+        
+        # Save merged file
+        audio_path = os.path.join(STORAGE_DIR, f"{job_id}.mp3")
+        with open(audio_path, "wb") as f:
+            f.write(merged_audio)
+        
+        # Upload to Google Drive if folder_id provided
+        google_drive_url = None
+        google_drive_file_id = None
+        folder_id = job.get("folder_id")
+        if folder_id:
+            print(f"Uploading to Google Drive folder: {folder_id}")
+            file_name = f"{job.get('name', 'audio')}_{job_id}.mp3"
+            drive_result = upload_to_google_drive(audio_path, folder_id, file_name)
+            if drive_result:
+                google_drive_url = drive_result.get('web_view_link')
+                google_drive_file_id = drive_result.get('file_id')
+                print(f"Google Drive upload successful: {google_drive_file_id}")
+        
+        # Update job as completed
+        audio_url = f"/api/jobs/{job_id}/download"
+        await db.jobs.update_one(
+            {"_id": ObjectId(job_id)},
+            {
+                "$set": {
+                    "status": "completed",
+                    "progress": 100,
+                    "stage": "Complete",
+                    "audio_path": audio_path,
+                    "audio_url": audio_url,
+                    "duration_seconds": duration,
+                    "google_drive_url": google_drive_url,
+                    "google_drive_file_id": google_drive_file_id,
+                    "updated_at": datetime.utcnow()
+                }
+            }
+        )
+        
+        print(f"Resumed job {job_id} completed. Duration: {duration:.2f}s")
+        
+        # Send webhook
+        full_audio_url = f"{APP_DOMAIN}{audio_url}"
+        await send_webhook(
+            job_id=job_id,
+            name=job["name"],
+            audio_url=full_audio_url,
+            status="completed",
+            text_length=job["text_length"],
+            chunk_count=chunk_count,
+            external_job_id=job.get("external_job_id"),
+            files_url=job.get("files_url"),
+            callback_data=job.get("callback_data"),
+            google_drive_url=google_drive_url,
+            google_drive_file_id=google_drive_file_id
+        )
+        
+    except Exception as e:
+        print(f"Error resuming job {job_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        await db.jobs.update_one(
+            {"_id": ObjectId(job_id)},
+            {"$set": {"status": "failed", "error": str(e), "updated_at": datetime.utcnow()}}
+        )
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)
