@@ -1001,6 +1001,54 @@ def tts_chunk_to_audio_sync(client: ElevenLabs, text: str, settings: dict) -> by
     return audio_data
 
 
+async def tts_chunk_with_retry(eleven_client: ElevenLabs, chunk_text: str, tts_settings: dict, chunk_index: int, job_id: str) -> bytes:
+    """
+    Process a TTS chunk with automatic retry on failure.
+    Returns audio bytes on success, raises exception after all retries exhausted.
+    """
+    last_error = None
+    
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            if attempt > 0:
+                delay = RETRY_DELAYS[min(attempt - 1, len(RETRY_DELAYS) - 1)]
+                print(f"Retry {attempt}/{MAX_RETRIES} for chunk {chunk_index + 1} of job {job_id} after {delay}s delay...")
+                await asyncio.sleep(delay)
+                
+                # Update chunk status to retrying
+                await db.jobs.update_one(
+                    {"_id": ObjectId(job_id)},
+                    {"$set": {
+                        f"chunk_requests.{chunk_index}.status": "retrying",
+                        f"chunk_requests.{chunk_index}.retry_count": attempt,
+                        "updated_at": datetime.utcnow()
+                    }}
+                )
+            
+            audio_data = await asyncio.to_thread(
+                lambda ct=chunk_text, s=tts_settings: tts_chunk_to_audio_sync(eleven_client, ct, s)
+            )
+            return audio_data
+            
+        except Exception as e:
+            last_error = e
+            print(f"Chunk {chunk_index + 1} attempt {attempt + 1} failed: {e}")
+            
+            if attempt < MAX_RETRIES:
+                # Update chunk status with error but continue retrying
+                await db.jobs.update_one(
+                    {"_id": ObjectId(job_id)},
+                    {"$set": {
+                        f"chunk_requests.{chunk_index}.last_error": str(e),
+                        f"chunk_requests.{chunk_index}.retry_count": attempt + 1,
+                        "updated_at": datetime.utcnow()
+                    }}
+                )
+    
+    # All retries exhausted
+    raise last_error
+
+
 # API Routes
 
 @app.get("/api/health")
