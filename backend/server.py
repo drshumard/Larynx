@@ -14,10 +14,12 @@ from io import BytesIO
 from datetime import datetime
 from typing import Optional
 from contextlib import asynccontextmanager
+from pathlib import Path
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file (use explicit path for PM2 compatibility)
+ENV_PATH = Path(__file__).resolve().parent / ".env"
+load_dotenv(dotenv_path=ENV_PATH)
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
