@@ -55,7 +55,8 @@ GOOGLE_CREDENTIALS_PATH = os.environ.get("GOOGLE_CREDENTIALS_PATH", "/app/backen
 print(f"ElevenLabs API Key loaded: {'Yes' if ELEVENLABS_API_KEY else 'No'}")
 print(f"App Domain: {APP_DOMAIN}")
 print(f"Webhook URL: {WEBHOOK_URL or 'Not configured'}")
-print(f"Google credentials: {os.path.exists(GOOGLE_CREDENTIALS_PATH) if GOOGLE_CREDENTIALS_PATH else 'Not configured'}")
+print(f"Google credentials path: {GOOGLE_CREDENTIALS_PATH}")
+print(f"Google credentials exists: {os.path.exists(GOOGLE_CREDENTIALS_PATH) if GOOGLE_CREDENTIALS_PATH else 'Not configured'}")
 
 # Constants
 DEFAULT_CHUNK_SIZE = 4500  # Default chunk size for chunking mode
