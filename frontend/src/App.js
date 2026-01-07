@@ -546,6 +546,24 @@ const JobDetailsPage = () => {
     }
   };
 
+  const handleRetry = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/jobs/${jobId}/retry`, {
+        method: 'POST',
+      });
+      if (response.ok) {
+        toast.success('Job retry started - resuming from failed chunk');
+        // Refresh job details to show new status
+        fetchJobDetails();
+      } else {
+        const error = await response.json();
+        toast.error(error.detail || 'Failed to retry job');
+      }
+    } catch (error) {
+      toast.error('Failed to retry job');
+    }
+  };
+
   if (loading) {
     return (
       <div className="app">
