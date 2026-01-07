@@ -65,6 +65,8 @@ print(f"Google credentials exists: {os.path.exists(GOOGLE_CREDENTIALS_PATH) if G
 DEFAULT_CHUNK_SIZE = 4500  # Default chunk size for chunking mode
 MIN_CHUNK_SIZE = 500
 MAX_CHUNK_SIZE = 20000
+MAX_RETRIES = 3  # Number of retries for failed API calls
+RETRY_DELAYS = [5, 15, 30]  # Seconds to wait between retries (exponential backoff)
 
 # Ensure storage directory exists
 os.makedirs(STORAGE_DIR, exist_ok=True)
