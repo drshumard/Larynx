@@ -840,7 +840,9 @@ async def process_tts_job(job_id: str):
             status="completed",
             text_length=job["text_length"],
             chunk_count=chunk_count,
-            webhook_data=job.get("webhook_data")
+            external_job_id=job.get("external_job_id"),
+            files_url=job.get("files_url"),
+            callback_data=job.get("callback_data")
         )
         
     except Exception as e:
