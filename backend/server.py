@@ -407,7 +407,7 @@ def merge_audio_chunks(audio_chunks: list[bytes]) -> tuple[bytes, float]:
                 pass
 
 
-async def send_webhook(job_id: str, name: str, audio_url: str, status: str, text_length: int, chunk_count: int):
+async def send_webhook(job_id: str, name: str, audio_url: str, status: str, text_length: int, chunk_count: int, webhook_data: dict = None):
     """Send webhook notification on job completion."""
     if not WEBHOOK_URL:
         print("No webhook URL configured, skipping...")
@@ -422,6 +422,15 @@ async def send_webhook(job_id: str, name: str, audio_url: str, status: str, text
         "chunkCount": chunk_count,
         "completedAt": datetime.utcnow().isoformat()
     }
+    
+    # Add custom webhook data if provided
+    if webhook_data:
+        if webhook_data.get("external_job_id"):
+            payload["externalJobId"] = webhook_data["external_job_id"]
+        if webhook_data.get("files_url"):
+            payload["filesUrl"] = webhook_data["files_url"]
+        if webhook_data.get("extra"):
+            payload["extra"] = webhook_data["extra"]
     
     try:
         async with httpx.AsyncClient() as http_client:
