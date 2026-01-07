@@ -47,11 +47,13 @@ ELEVENLABS_MODEL = os.environ.get("ELEVENLABS_MODEL", "eleven_multilingual_v2")
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "")
 APP_DOMAIN = os.environ.get("APP_DOMAIN", "http://localhost:8001")
 STORAGE_DIR = os.environ.get("STORAGE_DIR", "/app/backend/storage")
+GOOGLE_CREDENTIALS_PATH = os.environ.get("GOOGLE_CREDENTIALS_PATH", "/app/backend/google-credentials.json")
 
 # Debug: Print API key status
 print(f"ElevenLabs API Key loaded: {'Yes' if ELEVENLABS_API_KEY else 'No'}")
 print(f"App Domain: {APP_DOMAIN}")
 print(f"Webhook URL: {WEBHOOK_URL or 'Not configured'}")
+print(f"Google credentials: {os.path.exists(GOOGLE_CREDENTIALS_PATH) if GOOGLE_CREDENTIALS_PATH else 'Not configured'}")
 
 # Constants
 DEFAULT_CHUNK_SIZE = 4500  # Default chunk size for chunking mode
