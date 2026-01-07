@@ -700,7 +700,8 @@ async def process_studio_job(job_id: str):
                     audio_url=full_audio_url,
                     status="completed",
                     text_length=len(text),
-                    chunk_count=1
+                    chunk_count=1,
+                    webhook_data=job.get("webhook_data")
                 )
     
     except Exception as e:
