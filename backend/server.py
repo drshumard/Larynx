@@ -1137,6 +1137,7 @@ async def create_job(job_data: JobCreate, background_tasks: BackgroundTasks):
         "external_job_id": job_data.external_job_id,
         "files_url": job_data.files_url,
         "callback_data": job_data.callback_data,
+        "folder_id": job_data.folder_id,
         "tts_config": {
             "api": "ElevenLabs",
             "mode": mode,
