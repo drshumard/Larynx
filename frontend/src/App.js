@@ -1374,6 +1374,22 @@ const DashboardPage = () => {
     }
   };
 
+  const handleRetry = async (jobId, e) => {
+    e.stopPropagation();
+    try {
+      const response = await fetch(`${API_URL}/api/jobs/${jobId}/retry`, { method: 'POST' });
+      if (response.ok) {
+        toast.success('Job retry started');
+        fetchJobs(); // Refresh the list
+      } else {
+        const error = await response.json();
+        toast.error(error.detail || 'Failed to retry job');
+      }
+    } catch (error) {
+      toast.error('Failed to retry job');
+    }
+  };
+
   const handleDelete = async (jobId, e) => {
     e.stopPropagation();
     try {
