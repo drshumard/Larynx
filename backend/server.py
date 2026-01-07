@@ -84,9 +84,18 @@ app.add_middleware(
 
 
 # Models
+class WebhookData(BaseModel):
+    """Custom data to include in webhook callback"""
+    external_job_id: Optional[str] = Field(None, description="External job ID from caller")
+    files_url: Optional[str] = Field(None, description="URL to files")
+    # Add any other custom fields you need
+    extra: Optional[dict] = Field(None, description="Any additional custom data")
+
+
 class JobCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     text: str = Field(..., min_length=100)  # At least 100 characters
+    webhook_data: Optional[WebhookData] = Field(None, description="Custom data to pass to webhook on completion")
 
 
 class JobResponse(BaseModel):
