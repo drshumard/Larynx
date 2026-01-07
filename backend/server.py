@@ -831,14 +831,22 @@ async def process_tts_job(job_id: str):
             {"$set": {"status": "transcribing", "stage": f"Converting to speech (0/{chunk_count})...", "updated_at": datetime.utcnow()}}
         )
         
-        # Process each chunk
+        # Process each chunk with retry logic
         for i, chunk_text in enumerate(chunks):
             print(f"Processing chunk {i + 1}/{chunk_count} for job {job_id}")
             
+            # Update chunk status to processing
+            await db.jobs.update_one(
+                {"_id": ObjectId(job_id)},
+                {"$set": {
+                    f"chunk_requests.{i}.status": "processing",
+                    "updated_at": datetime.utcnow()
+                }}
+            )
+            
             try:
-                audio_data = await asyncio.to_thread(
-                    lambda ct=chunk_text, s=tts_settings: tts_chunk_to_audio_sync(eleven_client, ct, s)
-                )
+                # Use retry wrapper for resilience
+                audio_data = await tts_chunk_with_retry(eleven_client, chunk_text, tts_settings, i, job_id)
                 audio_chunks.append(audio_data)
                 
                 # Save individual chunk audio file
@@ -864,18 +872,19 @@ async def process_tts_job(job_id: str):
                     }
                 )
             except Exception as e:
-                # Mark chunk as failed
+                # Mark chunk as failed after all retries exhausted
                 await db.jobs.update_one(
                     {"_id": ObjectId(job_id)},
                     {
                         "$set": {
                             f"chunk_requests.{i}.status": "failed",
                             f"chunk_requests.{i}.error": str(e),
-                            f"chunk_requests.{i}.processed_at": datetime.utcnow().isoformat()
+                            f"chunk_requests.{i}.processed_at": datetime.utcnow().isoformat(),
+                            "failed_at_chunk": i  # Track where we failed for resume
                         }
                     }
                 )
-                print(f"Error processing chunk {i + 1}: {e}")
+                print(f"Error processing chunk {i + 1} after {MAX_RETRIES} retries: {e}")
                 raise
         
         # Merge audio chunks
