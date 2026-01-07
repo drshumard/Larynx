@@ -620,6 +620,15 @@ body {
   color: var(--processing);
 }
 
+.action-btn.retry {
+  color: var(--warning);
+}
+
+.action-btn.retry:hover {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
 .action-btn.delete:hover {
   background: var(--error-bg);
   color: var(--error);
