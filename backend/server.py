@@ -445,6 +445,54 @@ async def send_webhook(job_id: str, name: str, audio_url: str, status: str, text
         return False
 
 
+def upload_to_google_drive(file_path: str, folder_id: str, file_name: str) -> dict:
+    """
+    Upload a file to Google Drive folder.
+    Returns dict with file_id and web_view_link.
+    """
+    try:
+        if not os.path.exists(GOOGLE_CREDENTIALS_PATH):
+            print(f"Google credentials file not found: {GOOGLE_CREDENTIALS_PATH}")
+            return None
+        
+        # Authenticate with service account
+        credentials = service_account.Credentials.from_service_account_file(
+            GOOGLE_CREDENTIALS_PATH,
+            scopes=['https://www.googleapis.com/auth/drive.file']
+        )
+        
+        # Build the Drive service
+        service = build('drive', 'v3', credentials=credentials)
+        
+        # File metadata
+        file_metadata = {
+            'name': file_name,
+            'parents': [folder_id]
+        }
+        
+        # Upload the file
+        media = MediaFileUpload(file_path, mimetype='audio/mpeg', resumable=True)
+        file = service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id, webViewLink, webContentLink'
+        ).execute()
+        
+        print(f"Uploaded to Google Drive: {file.get('id')}")
+        
+        return {
+            'file_id': file.get('id'),
+            'web_view_link': file.get('webViewLink'),
+            'web_content_link': file.get('webContentLink')
+        }
+        
+    except Exception as e:
+        print(f"Google Drive upload error: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
 async def process_studio_job(job_id: str):
     """Background task to process TTS job using ElevenLabs Studio API."""
     try:
