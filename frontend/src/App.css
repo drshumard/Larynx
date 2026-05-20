@@ -2155,3 +2155,99 @@ body {
   background: var(--accent-subtle);
   color: var(--accent);
 }
+
+/* ===== Stitching debug surface (multilingual_v2) ===== */
+
+.summary-item.stitching-seed {
+  grid-column: 1 / -1;
+}
+
+.seed-code {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--accent-subtle, rgba(0, 0, 0, 0.06));
+  color: var(--text-primary, #0F0F0F);
+  font-family: 'Source Code Pro', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 150ms ease, transform 150ms ease;
+  user-select: all;
+}
+
+.seed-code:hover {
+  background: var(--accent, rgba(0, 0, 0, 0.12));
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.stitching-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--surface-2, rgba(0, 0, 0, 0.03));
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+}
+
+.stitching-row {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.stitching-label {
+  font-family: 'Source Code Pro', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  color: var(--text-secondary, #5A5A5A);
+  text-transform: lowercase;
+  letter-spacing: 0.03em;
+  padding-top: 4px;
+}
+
+.stitching-value {
+  display: inline-block;
+  font-family: 'Source Code Pro', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--bg, #F8F5EE);
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+  color: var(--text-primary, #0F0F0F);
+  cursor: pointer;
+  word-break: break-all;
+  user-select: all;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.stitching-value:hover {
+  background: var(--accent-subtle, rgba(0, 0, 0, 0.06));
+  border-color: var(--accent, rgba(0, 0, 0, 0.16));
+}
+
+.stitching-value.small {
+  font-size: 0.78rem;
+  padding: 2px 8px;
+}
+
+.stitching-value-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.link-inline {
+  font-family: 'Source Code Pro', ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--accent, #0F0F0F);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.link-inline:hover {
+  opacity: 0.7;
+}
+

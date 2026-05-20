@@ -72,10 +72,9 @@ RETRY_DELAYS = [5, 15, 30]  # Seconds to wait between retries (exponential backo
 # ElevenLabs model identifiers
 MODEL_MULTILINGUAL_V2 = "eleven_multilingual_v2"
 
-# multilingual_v2-specific chunking limits (per ElevenLabs spec)
-V2_HARD_CAP_CHARS = 5000   # API hard cap per request
-V2_SOFT_TARGET_MIN = 2000  # Soft target lower bound
-V2_SOFT_TARGET_MAX = 3000  # Soft target upper bound
+# multilingual_v2 fallback hard cap (used only if chunk_size isn't set; the UI
+# `chunk_size` setting is the source of truth at runtime).
+V2_HARD_CAP_CHARS = 5000
 V2_MAX_PREVIOUS_REQUEST_IDS = 3  # ElevenLabs stitching window
 
 # Ensure storage directory exists
@@ -318,39 +317,33 @@ def _split_into_sentences(text: str) -> list[str]:
 def split_text_into_chunks_v2(
     text: str,
     hard_cap: int = V2_HARD_CAP_CHARS,
-    soft_min: int = V2_SOFT_TARGET_MIN,
-    soft_max: int = V2_SOFT_TARGET_MAX,
 ) -> list[str]:
     """
-    Chunker for ElevenLabs `eleven_multilingual_v2`.
+    Chunker for ElevenLabs `eleven_multilingual_v2` request stitching.
 
     Rules:
-      - Hard cap: `hard_cap` chars per chunk (default 5000 — API limit).
-      - Soft target: aim for `soft_min`..`soft_max` chars per chunk.
+      - Hard cap: `hard_cap` chars per chunk (driven by the UI `chunk_size`
+        setting — falls back to V2_HARD_CAP_CHARS only when not provided).
       - Prefer PARAGRAPH boundaries (\n\n). When a paragraph alone exceeds the
         hard cap, fall back to sentence-level packing inside that paragraph.
-      - NEVER split mid-sentence (only at sentence terminators . ! ?).
+      - NEVER split mid-sentence (only at sentence terminators . ! ?). If a
+        single sentence exceeds `hard_cap`, it is emitted as-is rather than
+        broken mid-sentence — prosody integrity is preserved over API safety.
       - Preserves original punctuation/whitespace within sentences.
 
-    Strategy: greedy pack. Add the next unit (paragraph, else sentence) if it
-    fits under hard_cap. Close the current chunk once we cross soft_max (so we
-    stay in the 2k-3k zone whenever possible) OR when the next unit would
-    overflow hard_cap.
+    Strategy: greedy pack. Add the next unit (paragraph, else sentence) while
+    it fits under `hard_cap`. Close the chunk as soon as the next unit would
+    overflow. No soft target — pack as full as possible.
     """
     if not text or not text.strip():
         return []
 
-    # Normalize paragraph separators but preserve original line breaks within.
     # Treat 2+ consecutive newlines as paragraph boundaries.
     paragraphs = [p.strip() for p in re.split(r'\n\s*\n+', text.strip()) if p.strip()]
     if not paragraphs:
         paragraphs = [text.strip()]
 
     # Expand any paragraph that exceeds hard_cap into its constituent sentences.
-    # Units are tagged with their "kind" so we can re-join paragraphs with \n\n
-    # when both ends are paragraphs from the same original block (cheap heuristic:
-    # we just always glue paragraph-level units with \n\n and sentence-level
-    # units with a single space — matches natural reading flow).
     units: list[tuple[str, str]] = []  # (kind, text), kind in {"para","sent"}
     for para in paragraphs:
         if len(para) <= hard_cap:
@@ -358,9 +351,8 @@ def split_text_into_chunks_v2(
         else:
             sentences = _split_into_sentences(para)
             if not sentences:
-                # Degenerate: a single "sentence" longer than hard_cap with no
-                # terminators. We must not split mid-sentence — emit as-is and
-                # let the API reject it rather than silently corrupt prosody.
+                # Degenerate: a single block longer than hard_cap with no
+                # terminators. Emit as-is — never split mid-sentence.
                 units.append(("sent", para))
             else:
                 for s in sentences:
@@ -388,7 +380,6 @@ def split_text_into_chunks_v2(
 
     for kind, t in units:
         t_len = len(t)
-        # Separator cost if appending to existing buffer.
         sep_cost = 0
         if cur_parts:
             prev_kind = cur_parts[-1][0]
@@ -401,23 +392,9 @@ def split_text_into_chunks_v2(
             _flush()
             cur_parts.append((kind, t))
             cur_len = t_len
-            # If this single unit already exceeds soft_max, close immediately.
-            if cur_len >= soft_max:
-                _flush()
-            continue
-
-        # Fits under hard cap. Decide whether to close at soft_max boundary.
-        if cur_parts and cur_len >= soft_min and projected > soft_max:
-            # We're already in the sweet spot; adding this unit would push us
-            # past soft_max. Close the chunk to stay in the target band.
-            _flush()
-            cur_parts.append((kind, t))
-            cur_len = t_len
-            if cur_len >= soft_max:
-                _flush()
         else:
             cur_parts.append((kind, t))
-            cur_len = projected if cur_parts else t_len
+            cur_len = projected if (cur_parts and len(cur_parts) > 1) else t_len
 
     _flush()
     return chunks
@@ -1417,11 +1394,13 @@ async def create_job(job_data: JobCreate, background_tasks: BackgroundTasks):
     # For studio mode, we don't chunk - Studio handles it
     if mode == "chunking":
         model_id = tts_settings.get("model_id", ELEVENLABS_MODEL)
+        chunk_size = tts_settings.get("chunk_size", DEFAULT_CHUNK_SIZE)
         if model_id == MODEL_MULTILINGUAL_V2:
-            # multilingual_v2 has its own chunking rules + request stitching.
-            chunks = split_text_into_chunks_v2(job_data.text)
+            # multilingual_v2: request stitching + sentence-only splits.
+            # UI `chunk_size` acts as the hard cap (same source of truth as
+            # all other models).
+            chunks = split_text_into_chunks_v2(job_data.text, hard_cap=chunk_size)
         else:
-            chunk_size = tts_settings.get("chunk_size", DEFAULT_CHUNK_SIZE)
             chunks = split_text_into_chunks(job_data.text, max_chars=chunk_size)
         if len(chunks) == 0:
             raise HTTPException(status_code=400, detail="Text is too short to process")
@@ -1632,7 +1611,9 @@ async def get_job_details(job_id: str):
         "created_at": serialized["created_at"],
         "updated_at": serialized["updated_at"],
         "tts_config": serialized.get("tts_config"),
-        "chunk_requests": serialized.get("chunk_requests", [])
+        "chunk_requests": serialized.get("chunk_requests", []),
+        "seed": serialized.get("seed"),
+        "regenerated_from": serialized.get("regenerated_from"),
     }
 
 
@@ -1772,6 +1753,159 @@ async def retry_job(job_id: str, background_tasks: BackgroundTasks):
     background_tasks.add_task(resume_tts_job, job_id)
     
     return {"message": "Job retry started - resuming from failed chunk", "job_id": job_id}
+
+
+@app.post("/api/jobs/{job_id}/regenerate", response_model=JobResponse)
+async def regenerate_job(job_id: str, background_tasks: BackgroundTasks):
+    """
+    Create a NEW job from an existing job's source text + TTS config, reusing
+    the original `seed` (and, for chunking mode, re-chunking via the same
+    rules). This lets the user produce a deterministic re-run of a
+    multilingual_v2 job to A/B test prompts/text edits while keeping voice
+    identity identical.
+
+    The new job runs through the normal pipeline (background task, webhook,
+    Google Drive upload, etc). The source job is left untouched.
+    """
+    try:
+        src = await db.jobs.find_one({"_id": ObjectId(job_id)})
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid job ID")
+    if not src:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    src_text: str = src.get("original_text") or ""
+    if not src_text:
+        # Fallback: stitch chunks back together (legacy jobs may not have
+        # original_text stored).
+        src_text = "\n\n".join(src.get("chunks", []))
+    if not src_text:
+        raise HTTPException(status_code=400, detail="Source job has no text to regenerate from")
+
+    tts_config = src.get("tts_config", {}) or {}
+    mode = tts_config.get("mode", "chunking")
+    model_id = tts_config.get("model_id", ELEVENLABS_MODEL)
+    voice_settings = tts_config.get("voice_settings", DEFAULT_TTS_SETTINGS["voice_settings"])
+    studio_settings = tts_config.get("studio_settings", DEFAULT_TTS_SETTINGS["studio_settings"])
+    pronunciation_dict = tts_config.get("pronunciation_dictionary")
+
+    # Re-chunk using the same rules and the source job's chunk_size.
+    if mode == "chunking":
+        chunk_size = tts_config.get("chunk_size") or DEFAULT_CHUNK_SIZE
+        if model_id == MODEL_MULTILINGUAL_V2:
+            chunks = split_text_into_chunks_v2(src_text, hard_cap=chunk_size)
+        else:
+            chunks = split_text_into_chunks(src_text, max_chars=chunk_size)
+        if not chunks:
+            raise HTTPException(status_code=400, detail="Source text is too short to process")
+        chunk_count = len(chunks)
+    else:
+        chunks = [src_text]
+        chunk_count = 1
+
+    # Reuse the source seed when present (multilingual_v2 deterministic re-run).
+    # If the source has no seed but the new run will be multilingual_v2 chunking,
+    # mint a fresh one so the new chain is still stitched.
+    job_seed: Optional[int] = src.get("seed")
+    if job_seed is None and mode == "chunking" and model_id == MODEL_MULTILINGUAL_V2:
+        job_seed = random.randint(0, 2**31 - 1)
+
+    chunk_requests = []
+    for i, chunk_text in enumerate(chunks):
+        if mode == "chunking":
+            chunk_requests.append({
+                "chunk_index": i,
+                "request": {
+                    "endpoint": "POST https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
+                    "voice_id": tts_config.get("voice_id", ELEVENLABS_VOICE_ID),
+                    "model_id": model_id,
+                    "output_format": tts_config.get("output_format", "mp3_44100_128"),
+                    "voice_settings": voice_settings,
+                    "pronunciation_dictionary_locators": [pronunciation_dict] if pronunciation_dict and pronunciation_dict.get("pronunciation_dictionary_id") else None,
+                    "text": chunk_text,
+                    "text_length": len(chunk_text),
+                },
+                "status": "pending",
+                "processed_at": None,
+            })
+        else:
+            chunk_requests.append({
+                "chunk_index": i,
+                "request": {
+                    "endpoint": "POST https://api.elevenlabs.io/v1/studio/projects",
+                    "voice_id": tts_config.get("voice_id", ELEVENLABS_VOICE_ID),
+                    "model_id": model_id,
+                    "quality_preset": studio_settings.get("quality_preset", "standard"),
+                    "voice_settings": voice_settings,
+                    "studio_settings": studio_settings,
+                    "text_length": len(chunk_text),
+                },
+                "status": "pending",
+                "processed_at": None,
+            })
+
+    now = datetime.utcnow()
+    new_doc = {
+        "name": f"{src.get('name', 'job')} (regen)",
+        "text_length": len(src_text),
+        "original_text": src_text,
+        "chunk_count": chunk_count,
+        "processed_chunks": 0,
+        "chunks": chunks,
+        "chunk_requests": chunk_requests,
+        "external_job_id": src.get("external_job_id"),
+        "files_url": src.get("files_url"),
+        "callback_data": src.get("callback_data"),
+        "folder_id": src.get("folder_id"),
+        "seed": job_seed,
+        "regenerated_from": str(src["_id"]),  # provenance link
+        "tts_config": {
+            "api": tts_config.get("api", "ElevenLabs"),
+            "mode": mode,
+            "voice_id": tts_config.get("voice_id", ELEVENLABS_VOICE_ID),
+            "model_id": model_id,
+            "output_format": tts_config.get("output_format", "mp3_44100_128"),
+            "chunk_size": tts_config.get("chunk_size") if mode == "chunking" else None,
+            "pronunciation_dictionary": pronunciation_dict,
+            "voice_settings": voice_settings,
+            "studio_settings": studio_settings,
+        },
+        "status": "queued",
+        "stage": "Waiting in queue...",
+        "progress": 0,
+        "error": None,
+        "audio_path": None,
+        "audio_url": None,
+        "duration_seconds": None,
+        "created_at": now,
+        "updated_at": now,
+    }
+
+    result = await db.jobs.insert_one(new_doc)
+    new_job_id = str(result.inserted_id)
+
+    if mode == "studio":
+        background_tasks.add_task(process_studio_job, new_job_id)
+    else:
+        background_tasks.add_task(process_tts_job, new_job_id)
+
+    new_doc["_id"] = result.inserted_id
+    serialized = serialize_doc(new_doc)
+    return JobResponse(
+        id=new_job_id,
+        name=serialized["name"],
+        status=serialized["status"],
+        stage=serialized.get("stage"),
+        progress=serialized["progress"],
+        chunk_count=serialized["chunk_count"],
+        processed_chunks=serialized["processed_chunks"],
+        text_length=serialized["text_length"],
+        error=serialized.get("error"),
+        audio_url=serialized.get("audio_url"),
+        duration_seconds=serialized.get("duration_seconds"),
+        created_at=serialized["created_at"],
+        updated_at=serialized["updated_at"],
+    )
 
 
 async def resume_tts_job(job_id: str):

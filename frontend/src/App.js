@@ -34,6 +34,7 @@ import {
   ChevronRight,
   Settings,
   RotateCcw,
+  Sparkles,
   Save
 } from 'lucide-react';
 
@@ -405,6 +406,59 @@ const ChunkRequestCard = ({ chunk, index, isExpanded, onToggle, jobId }) => {
       
       {isExpanded && (
         <div className="chunk-body">
+          {(chunk.request_id || (chunk.previous_request_ids && chunk.previous_request_ids.length > 0) || chunk.seed !== undefined && chunk.seed !== null) && (
+            <div className="chunk-section">
+              <div className="chunk-section-header">
+                <Sparkles />
+                <span>Stitching</span>
+              </div>
+              <div className="stitching-grid" data-testid={`chunk-${index}-stitching`}>
+                {chunk.request_id && (
+                  <div className="stitching-row">
+                    <span className="stitching-label">request_id</span>
+                    <code
+                      className="stitching-value"
+                      onClick={() => { navigator.clipboard.writeText(chunk.request_id); toast.success('request_id copied'); }}
+                      title="Click to copy"
+                      data-testid={`chunk-${index}-request-id`}
+                    >
+                      {chunk.request_id}
+                    </code>
+                  </div>
+                )}
+                {chunk.previous_request_ids && chunk.previous_request_ids.length > 0 && (
+                  <div className="stitching-row">
+                    <span className="stitching-label">previous_request_ids</span>
+                    <div className="stitching-value-list">
+                      {chunk.previous_request_ids.map((pid) => (
+                        <code
+                          key={pid}
+                          className="stitching-value small"
+                          onClick={() => { navigator.clipboard.writeText(pid); toast.success('id copied'); }}
+                          title="Click to copy"
+                        >
+                          {pid}
+                        </code>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {chunk.seed !== undefined && chunk.seed !== null && (
+                  <div className="stitching-row">
+                    <span className="stitching-label">seed</span>
+                    <code
+                      className="stitching-value"
+                      onClick={() => { navigator.clipboard.writeText(String(chunk.seed)); toast.success('seed copied'); }}
+                      title="Click to copy"
+                    >
+                      {chunk.seed}
+                    </code>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {hasAudio && (
             <div className="chunk-section">
               <div className="chunk-section-header">
@@ -564,6 +618,31 @@ const JobDetailsPage = () => {
     }
   };
 
+  const handleRegenerate = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/jobs/${jobId}/regenerate`, {
+        method: 'POST',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        toast.success('New job started with same seed');
+        // Navigate to the new job's details page.
+        navigate(`/job/${data.id}`);
+      } else {
+        const error = await response.json();
+        toast.error(error.detail || 'Failed to regenerate job');
+      }
+    } catch (error) {
+      toast.error('Failed to regenerate job');
+    }
+  };
+
+  const copyValue = (text, label = 'Copied') => {
+    if (text === null || text === undefined) return;
+    navigator.clipboard.writeText(String(text));
+    toast.success(label);
+  };
+
   if (loading) {
     return (
       <div className="app">
@@ -603,6 +682,16 @@ const JobDetailsPage = () => {
             {job.status === 'failed' && (
               <button className="btn primary" onClick={handleRetry} data-testid="retry-job-btn">
                 <RefreshCw /> Retry Job
+              </button>
+            )}
+            {job.seed !== null && job.seed !== undefined && (job.status === 'completed' || job.status === 'failed') && (
+              <button
+                className="btn secondary"
+                onClick={handleRegenerate}
+                data-testid="regenerate-job-btn"
+                title={`Run a new job using the same seed (${job.seed}) and config for a deterministic re-run.`}
+              >
+                <Sparkles /> Regenerate w/ Same Seed
               </button>
             )}
             {isDone && (
@@ -653,6 +742,34 @@ const JobDetailsPage = () => {
                   <span className="summary-label">Progress</span>
                   <span className="summary-value">{job.progress}%</span>
                 </div>
+                {job.seed !== null && job.seed !== undefined && (
+                  <div className="summary-item stitching-seed" data-testid="job-seed-row">
+                    <span className="summary-label">
+                      <Sparkles style={{ width: 12, height: 12, marginRight: 4, verticalAlign: 'middle' }} />
+                      Stitching Seed
+                    </span>
+                    <span className="summary-value">
+                      <code
+                        className="seed-code"
+                        onClick={() => copyValue(job.seed, `Seed ${job.seed} copied`)}
+                        title="Click to copy"
+                        data-testid="job-seed-value"
+                      >
+                        {job.seed}
+                      </code>
+                    </span>
+                  </div>
+                )}
+                {job.regenerated_from && (
+                  <div className="summary-item">
+                    <span className="summary-label">Regenerated From</span>
+                    <span className="summary-value">
+                      <Link to={`/job/${job.regenerated_from}`} className="link-inline">
+                        {job.regenerated_from.slice(-8)}
+                      </Link>
+                    </span>
+                  </div>
+                )}
               </div>
               
               {isDone && (

@@ -1,30 +1,26 @@
 [
   {
-    "content": "Add `import random` + v2-aware chunker (5000 hard, 2000-3000 soft, paragraph-preferring, sentence-only splits)",
+    "content": "Backend: switch v2 chunker to UI-driven chunk_size (drop hardcoded 5k/2-3k); keep sentence-only guarantee",
     "status": "completed"
   },
   {
-    "content": "Rewrite tts_chunk_to_audio_sync to support seed + previous_request_ids, use with_raw_response, return (audio_bytes, request_id)",
+    "content": "Backend: add POST /api/jobs/{job_id}/regenerate endpoint (same seed + config + text)",
     "status": "completed"
   },
   {
-    "content": "Update tts_chunk_with_retry to thread seed/previous_request_ids and return tuple",
+    "content": "Frontend: show job-level seed in Job Summary card (with copy)",
     "status": "completed"
   },
   {
-    "content": "Update create_job: when model=multilingual_v2 use v2 chunker + generate/persist seed",
+    "content": "Frontend: show per-chunk request_id + previous_request_ids in ChunkRequestCard",
     "status": "completed"
   },
   {
-    "content": "Update process_tts_job: build request_ids list, pass seed+previous_request_ids, persist per-chunk request_id",
+    "content": "Frontend: add 'Regenerate with same seed' button + handler in Job Details header",
     "status": "completed"
   },
   {
-    "content": "Update resume_tts_job: rehydrate request_ids from completed chunk_requests, continue chain",
-    "status": "completed"
-  },
-  {
-    "content": "Lint + restart backend + curl smoke test the stitching path",
+    "content": "Lint + restart + smoke test",
     "status": "completed"
   }
 ]
