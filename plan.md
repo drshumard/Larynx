@@ -154,3 +154,25 @@ WEBHOOK_URL="https://drshumard.app.n8n.cloud/webhook/cb298a5c-abcf-4596-bec3-e45
 - Add progress percentage display
 - Add estimated time remaining
 - Add job history pagination
+
+## Phase 4: multilingual_v2 Request Stitching ✅ COMPLETE
+
+Trigger: `tts_config.model_id == "eleven_multilingual_v2"` (chunking mode only).
+All other models — including `eleven_v3` — keep prior behavior (regression-verified).
+
+### What was implemented
+- **v2-aware chunker** (`split_text_into_chunks_v2`): hard cap 5,000 chars, soft target 2,000-3,000, paragraph-preferring, sentence-only splits. Never breaks mid-sentence; preserves punctuation and closing quotes/brackets.
+- **Per-job seed**: one `random.randint(0, 2**31-1)` generated at job creation, persisted on `jobs.seed`, reused on every chunk of the same job (deterministic re-runs).
+- **Request stitching**: each chunk N (N>0) sends `previous_request_ids = [last up to 3 chunk request-ids]`. `request-id` header captured via `client.text_to_speech.with_raw_response.convert(...)` and persisted at `chunk_requests.{i}.request_id` along with `previous_request_ids` and `seed` for debugging.
+- **Resume path** (`resume_tts_job`) rehydrates the request-id list from completed chunks so the chain continues correctly after a failed/restarted job.
+- **Voice settings untouched** — user values pass through as-is.
+
+### Smoke test (live, against ElevenLabs API)
+- 4,290-char payload → 2 chunks of 2,069 + 2,219 chars (inside 2k-3k band ✅)
+- Both chunks used `seed=2129321037` ✅
+- Chunk 1 sent `previous_request_ids=['CCMz3ePvdqIWPTUURHIj']` (chunk 0's id) ✅
+- Job completed end-to-end; merged MP3 produced.
+- v3 regression: `seed=None`, no `request_id`/`previous_request_ids` written. ✅
+
+### Files touched
+- `/app/backend/server.py` only. No frontend changes (per spec).

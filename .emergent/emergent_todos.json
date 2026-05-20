@@ -1,34 +1,30 @@
 [
   {
-    "content": "Phase 1: Core POC - Test ElevenLabs TTS + chunking + audio merge",
+    "content": "Add `import random` + v2-aware chunker (5000 hard, 2000-3000 soft, paragraph-preferring, sentence-only splits)",
     "status": "completed"
   },
   {
-    "content": "Phase 1: Verify webhook delivery to n8n endpoint",
+    "content": "Rewrite tts_chunk_to_audio_sync to support seed + previous_request_ids, use with_raw_response, return (audio_bytes, request_id)",
     "status": "completed"
   },
   {
-    "content": "Phase 2: Backend - Build FastAPI endpoints and background processing",
+    "content": "Update tts_chunk_with_retry to thread seed/previous_request_ids and return tuple",
     "status": "completed"
   },
   {
-    "content": "Phase 2: Frontend - Build React UI with Inter font, cream/black palette",
+    "content": "Update create_job: when model=multilingual_v2 use v2 chunker + generate/persist seed",
     "status": "completed"
   },
   {
-    "content": "Phase 2: End-to-end testing with testing_agent",
+    "content": "Update process_tts_job: build request_ids list, pass seed+previous_request_ids, persist per-chunk request_id",
     "status": "completed"
   },
   {
-    "content": "Phase 2: All user stories covered and verified",
+    "content": "Update resume_tts_job: rehydrate request_ids from completed chunk_requests, continue chain",
     "status": "completed"
   },
   {
-    "content": "Design Update: Jobs as cards with progress bars, sophisticated UI",
-    "status": "completed"
-  },
-  {
-    "content": "Fix: Changed ElevenLabs model to eleven_v3",
+    "content": "Lint + restart backend + curl smoke test the stitching path",
     "status": "completed"
   }
 ]
