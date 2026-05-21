@@ -172,6 +172,7 @@ All other models — including `eleven_v3` — keep prior behavior (regression-v
 - **Job Summary card**: "Stitching Seed" row (monospace pill, click-to-copy); "Regenerated From" link when present.
 - **Job Details header**: "Regenerate w/ Same Seed" button (visible when `seed` present + status completed/failed). Navigates to the new job.
 - **Chunk Requests cards**: new "Stitching" section showing `request_id`, `previous_request_ids` (chips), and per-chunk `seed`. All values click-to-copy.
+- **Dashboard table**: tiny ✨ Sparkles badge beside each job name with `seed` present; hover reveals a tooltip with `stitched / seed / click-to-copy hint`. Click copies the seed. Backend `/api/jobs` list response extended with lightweight `seed` and `model_id` fields.
 
 ### Smoke test (live)
 - 4,290-char text @ `chunk_size=9000` → 1 chunk ✅ (was 2 under old hardcoded 3000 cap)

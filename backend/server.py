@@ -1542,7 +1542,10 @@ async def list_jobs(limit: int = 50, skip: int = 0):
             "audio_url": serialized.get("audio_url"),
             "duration_seconds": serialized.get("duration_seconds"),
             "created_at": serialized["created_at"],
-            "updated_at": serialized["updated_at"]
+            "updated_at": serialized["updated_at"],
+            # Lightweight stitching metadata for dashboard tooltip.
+            "seed": serialized.get("seed"),
+            "model_id": (serialized.get("tts_config") or {}).get("model_id"),
         })
     
     # Get total count

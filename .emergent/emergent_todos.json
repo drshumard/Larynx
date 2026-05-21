@@ -1,26 +1,18 @@
 [
   {
-    "content": "Backend: switch v2 chunker to UI-driven chunk_size (drop hardcoded 5k/2-3k); keep sentence-only guarantee",
+    "content": "Backend: extend /api/jobs to include seed + model_id",
     "status": "completed"
   },
   {
-    "content": "Backend: add POST /api/jobs/{job_id}/regenerate endpoint (same seed + config + text)",
+    "content": "Frontend: add Sparkles seed badge with tooltip beside job name in dashboard table",
     "status": "completed"
   },
   {
-    "content": "Frontend: show job-level seed in Job Summary card (with copy)",
+    "content": "Fix CSS parsing bug (unclosed .link-inline rule + orphan tail)",
     "status": "completed"
   },
   {
-    "content": "Frontend: show per-chunk request_id + previous_request_ids in ChunkRequestCard",
-    "status": "completed"
-  },
-  {
-    "content": "Frontend: add 'Regenerate with same seed' button + handler in Job Details header",
-    "status": "completed"
-  },
-  {
-    "content": "Lint + restart + smoke test",
+    "content": "Visual verify tooltip + computed styles",
     "status": "completed"
   }
 ]

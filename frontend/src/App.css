@@ -2251,3 +2251,123 @@ body {
   opacity: 0.7;
 }
 
+/* ===== Dashboard seed badge + tooltip ===== */
+
+.seed-badge-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  flex-shrink: 0;
+}
+
+.seed-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+  background: var(--accent-subtle, rgba(0, 0, 0, 0.04));
+  color: var(--accent, #0F0F0F);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: transform 150ms ease, background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.seed-badge:hover {
+  background: var(--accent, #0F0F0F);
+  color: #fff;
+  border-color: var(--accent, #0F0F0F);
+  transform: translateY(-1px);
+}
+
+.seed-badge:focus-visible {
+  outline: 2px solid var(--accent, #0F0F0F);
+  outline-offset: 2px;
+}
+
+.seed-badge svg {
+  width: 12px;
+  height: 12px;
+}
+
+.seed-badge-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  min-width: 220px;
+  padding: 10px 12px;
+  background: var(--text-primary, #0F0F0F);
+  color: #fff;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 400;
+  text-align: left;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 150ms ease, transform 150ms ease, visibility 150ms ease;
+  z-index: 200;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.seed-badge-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--text-primary, #0F0F0F);
+}
+
+.seed-badge-wrapper:hover .seed-badge-tooltip,
+.seed-badge:focus-visible + .seed-badge-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+.seed-badge-tooltip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 4px;
+}
+
+.seed-badge-tooltip-row:last-of-type {
+  margin-bottom: 0;
+}
+
+.seed-badge-tooltip-label {
+  font-family: 'Source Code Pro', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.7rem;
+  opacity: 0.55;
+  text-transform: lowercase;
+  letter-spacing: 0.03em;
+}
+
+.seed-badge-tooltip-value {
+  font-weight: 500;
+}
+
+.seed-badge-tooltip-value.mono {
+  font-family: 'Source Code Pro', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+}
+
+.seed-badge-tooltip-hint {
+  display: block;
+  font-size: 0.68rem;
+  opacity: 0.5;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-style: italic;
+  text-align: center;
+}

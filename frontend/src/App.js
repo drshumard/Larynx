@@ -1731,6 +1731,37 @@ const DashboardPage = () => {
                                 <span className="job-name" data-testid="job-name-cell">{job.name}</span>
                                 {isFailed && <div className="job-subtitle">Click to view error</div>}
                               </div>
+                              {job.seed !== null && job.seed !== undefined && (
+                                <span
+                                  className="seed-badge-wrapper"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <button
+                                    type="button"
+                                    className="seed-badge"
+                                    data-testid={`seed-badge-${job.id}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigator.clipboard.writeText(String(job.seed));
+                                      toast.success(`Seed ${job.seed} copied`);
+                                    }}
+                                    aria-label={`Stitched job — seed ${job.seed}. Click to copy.`}
+                                  >
+                                    <Sparkles />
+                                  </button>
+                                  <span className="seed-badge-tooltip" role="tooltip">
+                                    <span className="seed-badge-tooltip-row">
+                                      <span className="seed-badge-tooltip-label">stitched</span>
+                                      <span className="seed-badge-tooltip-value">{job.model_id || 'eleven_multilingual_v2'}</span>
+                                    </span>
+                                    <span className="seed-badge-tooltip-row">
+                                      <span className="seed-badge-tooltip-label">seed</span>
+                                      <span className="seed-badge-tooltip-value mono">{job.seed}</span>
+                                    </span>
+                                    <span className="seed-badge-tooltip-hint">click to copy seed</span>
+                                  </span>
+                                </span>
+                              )}
                             </div>
                           </td>
                           <td><span className="cell-value">{job.text_length?.toLocaleString()}</span></td>
