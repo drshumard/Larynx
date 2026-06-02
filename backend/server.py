@@ -69,6 +69,12 @@ MAX_CHUNK_SIZE = 20000
 MAX_RETRIES = 3  # Number of retries for failed API calls
 RETRY_DELAYS = [5, 15, 30]  # Seconds to wait between retries (exponential backoff)
 
+# Hard per-attempt timeout for ElevenLabs TTS calls (seconds). The SDK uses
+# httpx under the hood; without an explicit timeout a streaming response can
+# hang the worker thread indefinitely. This bounds each attempt so the retry
+# wrapper can surface failures instead of the job silently stalling forever.
+ELEVENLABS_REQUEST_TIMEOUT_SECONDS = 240
+
 # ElevenLabs model identifiers
 MODEL_MULTILINGUAL_V2 = "eleven_multilingual_v2"
 
@@ -1165,6 +1171,10 @@ def tts_chunk_to_audio_sync(
         "use_speaker_boost": voice_settings.get("use_speaker_boost", False),
     }
 
+    # Bound every attempt with a hard timeout so a hung HTTP read can't
+    # silently stall a job forever. The SDK forwards this into httpx.
+    request_options = {"timeout_in_seconds": ELEVENLABS_REQUEST_TIMEOUT_SECONDS}
+
     use_raw = seed is not None or bool(previous_request_ids)
 
     if use_raw:
@@ -1176,6 +1186,7 @@ def tts_chunk_to_audio_sync(
             output_format=output_format,
             voice_settings=vs_payload,
             pronunciation_dictionary_locators=pronunciation_dictionary_locators,
+            request_options=request_options,
         )
         if seed is not None:
             kwargs["seed"] = seed
@@ -1202,6 +1213,7 @@ def tts_chunk_to_audio_sync(
         output_format=output_format,
         voice_settings=vs_payload,
         pronunciation_dictionary_locators=pronunciation_dictionary_locators,
+        request_options=request_options,
     )
     audio_data = b"".join(chunk for chunk in audio_generator)
     return audio_data, None
@@ -1243,9 +1255,12 @@ async def tts_chunk_with_retry(
                     }}
                 )
             
-            audio_data, request_id = await asyncio.to_thread(
-                lambda ct=chunk_text, s=tts_settings, sd=seed, pri=previous_request_ids:
-                    tts_chunk_to_audio_sync(eleven_client, ct, s, seed=sd, previous_request_ids=pri)
+            audio_data, request_id = await asyncio.wait_for(
+                asyncio.to_thread(
+                    lambda ct=chunk_text, s=tts_settings, sd=seed, pri=previous_request_ids:
+                        tts_chunk_to_audio_sync(eleven_client, ct, s, seed=sd, previous_request_ids=pri)
+                ),
+                timeout=ELEVENLABS_REQUEST_TIMEOUT_SECONDS,
             )
             return audio_data, request_id
             
