@@ -239,14 +239,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "v3 job outgoing TTS request must NOT include previous_request_ids"
-    - "v3 job chunk_requests[i] has seed but NO request_id / previous_request_ids"
-    - "Live v3 job runs end-to-end without HTTP 400 unsupported_model"
-    - "multilingual_v2 chunk_requests[i] still has seed + request_id + previous_request_ids"
-    - "eleven_v3 jobs get a non-null integer seed on creation"
-    - "Regenerate on a v3 job reuses the SAME seed"
-    - "eleven_turbo_v2_5 and studio-mode jobs still have seed: null"
-    - "multilingual_v2 behavior unchanged"
+    - "Audio scrubbing: malformed Range header should fall back to 200 (currently returns 416) — server.py:1758-1767"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -276,14 +269,52 @@ agent_communication:
       REACT_APP_BACKEND_URL (external) or http://localhost:8001 (internal).
   - agent: "user"
     message: |
-      BUG (production): a real v3 chunk call was rejected by ElevenLabs with
-      HTTP 400 unsupported_model — "Providing previous_request_ids or
-      next_request_ids is not yet supported with the 'eleven_v3' model."
-      The `seed` param IS accepted for v3; only previous_request_ids must be
-      omitted. Split the concept: SEED_MODELS = {v2, v3}, STITCHING_MODELS = {v2}.
+      BUG: audio scrubbing is broken — dragging the scrubber snaps back to 0.
+      Especially in the CHUNK player. Likely no HTTP Range support on the
+      audio endpoints.
   - agent: "main"
     message: |
-      Bug fix applied — SEED_MODELS and STITCHING_MODELS are now separate.
+      Root cause confirmed: Starlette 0.37.2 `FileResponse` does NOT emit
+      206 Partial Content — Range support in FileResponse landed only in
+      later Starlette versions. Both `/api/jobs/{id}/download` and
+      `/api/jobs/{id}/chunks/{i}/audio` were using FileResponse, so the
+      browser <audio> element could not seek → snap-to-0.
+
+      Fix in `/app/backend/server.py`:
+        - Added `_parse_range_header()` + `serve_audio_with_range()` helper
+          that:
+            * No Range header → 200 + `Accept-Ranges: bytes` + full body.
+            * Valid `Range: bytes=start-end` (or `bytes=-N` suffix) → 206
+              Partial Content with `Content-Range: bytes s-e/total`,
+              correct `Content-Length`, and streamed byte slice.
+            * Malformed / unsatisfiable → 416 with `Content-Range: */size`.
+        - `/api/jobs/{id}/download` now uses helper with
+          `Content-Disposition: attachment` (Save-as still works).
+        - `/api/jobs/{id}/chunks/{i}/audio` uses helper with
+          `Content-Disposition: inline` (preferred for the audio player).
+        - Imported `Request`, `Response` from fastapi.
+      No frontend change — the React players already use currentTime
+      correctly; the issue was 100% backend.
+
+      Local verification (main-agent, not authoritative):
+        GET   /download      → 200, Accept-Ranges: bytes, 721022 bytes
+        RANGE 100-200        → 206, Content-Range: bytes 100-200/721022 (101 B)
+        RANGE 1000-2000 chunk→ 206, Content-Range: bytes 1000-2000/353218
+        SUFFIX -500          → 206, Content-Range: bytes 352718-353217/353218
+        RANGE 99999999-      → 416, Content-Range: */353218
+
+      **SEEDED TEST JOB for testing_agent**:
+        Job ID: `6a6b6ec9879fe7e7aac047a2`
+        Name: "SCRUB TEST — seek me"
+        Full audio: /api/jobs/6a6b6ec9879fe7e7aac047a2/download  (45s, 721022 B)
+        Chunk 0: /api/jobs/6a6b6ec9879fe7e7aac047a2/chunks/0/audio (22s, 353218 B)
+        Chunk 1: /api/jobs/6a6b6ec9879fe7e7aac047a2/chunks/1/audio (23s, 369101 B)
+        Files: /app/backend/storage/scrub_test_full.mp3, _chunk_0.mp3, _chunk_1.mp3
+        status=completed so both the main <AudioPlayer> and per-chunk
+        <ChunkAudioPlayer> will render for this job in the UI.
+
+      Please backend-test the Range semantics and confirm no regression
+      to full downloads. Frontend UI verification is separately requested.
       `/app/backend/server.py` diff summary:
         - lines 79-90: SEED_MODELS = {multilingual_v2, eleven_v3};
           STITCHING_MODELS = {multilingual_v2}.
@@ -381,3 +412,82 @@ agent_communication:
       works. Full end-to-end audio generation could not be verified
       because ELEVENLABS_API_KEY returns 401 Invalid API key — please
       refresh the key if you want a completed-status test.
+  - agent: "testing"
+    message: |
+      HTTP Range / audio-scrubbing bug-fix retest (13 checks total).
+      Test script: /app/backend_test.py
+      Target: https://c13eddd0-b7a5-4e2e-b9f4-46c909c653f2.preview.emergentagent.com/api
+      Seeded job used (NOT deleted): 6a6b6ec9879fe7e7aac047a2
+        seed=424242, model=eleven_v3, status=completed, chunks=2
+        Full = 721022 B, chunk0 = 353218 B, chunk1 = 369101 B.
+
+      RESULT: 12/13 PASS, 1 FAIL.
+
+      ============================================================
+      FAILURE (needs main-agent fix):
+      ============================================================
+      Check #6 — download endpoint with garbage `Range: potato`
+        Expected per review: status 200 (fallback to full body),
+                             Accept-Ranges: bytes present, body length = 721022.
+        Actual:              status 416, Content-Range: bytes */721022, body length = 0.
+
+        Root cause (server.py:1758-1767): `_parse_range_header()`
+        returns None for BOTH "syntactically invalid" (does not
+        start with `bytes=`) AND "syntactically valid but
+        unsatisfiable" (e.g. bytes=99999999-). The caller then
+        unconditionally returns 416 for either case.
+
+        Per RFC 7233 §3.1 / §4.4:
+          - Unrecognizable Range header SHOULD be ignored (→ 200 full).
+          - Syntactically valid but unsatisfiable → 416 with
+            Content-Range: */size.
+
+        The review-request assertion (do NOT 500, do fall back to 200)
+        matches the RFC "ignore unrecognized" behavior. The fix is a
+        one-liner in serve_audio_with_range: if the raw header does
+        not start with "bytes=", treat it as absent and serve the
+        full 200 body instead of routing to the 416 branch. I did
+        NOT patch this — reporting to main agent per policy.
+
+        NOTE: this failure does NOT affect the actual scrub bug the
+        user reported; real browsers only ever send well-formed
+        `bytes=start-end` Range headers, so the audio player will
+        scrub correctly. It is a spec-compliance edge case only.
+
+      ============================================================
+      PASSES (12):
+      ============================================================
+      Main download endpoint (/api/jobs/{id}/download, size=721022):
+        1. GET no-Range   → 200, Accept-Ranges: bytes,
+                             Content-Length: 721022,
+                             Content-Disposition: attachment; filename="SCRUB_TEST___seek_me.mp3",
+                             body = 721022 B.
+        2. Range 100-200  → 206, Content-Range: bytes 100-200/721022,
+                             CL=101, body=101 B.
+        3. Range 500000-  → 206, Content-Range: bytes 500000-721021/721022,
+                             CL=221022, body=221022 B.
+        4. Range -1024    → 206, Content-Range: bytes 719998-721021/721022,
+                             CL=1024, body=1024 B.
+        5. Range 99999999-→ 416, Content-Range: bytes */721022.
+
+      Chunk endpoint (/api/jobs/{id}/chunks/0/audio, size=353218):
+        7. GET no-Range   → 200, Content-Length: 353218,
+                             Accept-Ranges: bytes,
+                             Content-Disposition: inline; filename="SCRUB_TEST___seek_me_chunk_1.mp3",
+                             body = 353218 B.
+        8. Range 1000-2000→ 206, Content-Range: bytes 1000-2000/353218,
+                             CL=1001, body=1001 B.
+        9. Byte-integrity → full md5 = md5(bytes 0-176608 ++ bytes 176609-353217)
+                             = 055c6206... ✓ (byte-accurate slicing).
+       10. Range 99999999-→ 416, Content-Range: bytes */353218.
+
+      Regression:
+       11. /api/health           → 200, {"status":"healthy",...}
+       12. /api/jobs/.../details → 200, seed=424242, model=eleven_v3,
+                                    status=completed (seeded job intact).
+       13. /api/openapi.json     → 200.
+
+      SEEDED JOB LEFT IN PLACE for UI verification as instructed.
+      Real-world browser scrubbing (well-formed Range headers) is
+      fully working — 206 + Content-Range + byte-accurate slicing all
+      verified. Only edge-case is the malformed-Range fallback (#6).

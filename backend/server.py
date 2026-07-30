@@ -22,9 +22,9 @@ from dotenv import load_dotenv
 ENV_PATH = Path(__file__).resolve().parent / ".env"
 load_dotenv(dotenv_path=ENV_PATH)
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse, Response
 from pydantic import BaseModel, Field
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
@@ -1659,8 +1659,141 @@ async def get_job_details(job_id: str):
     }
 
 
+RANGE_CHUNK_SIZE = 1024 * 1024  # 1 MiB per iterator yield for partial-content streams
+
+
+def _parse_range_header(range_header: str, file_size: int) -> Optional[tuple[int, int]]:
+    """
+    Parse an HTTP Range header of the form `bytes=start-end` (single range only).
+
+    Returns (start, end) inclusive byte offsets when the range is satisfiable,
+    or None if the header is malformed or unsatisfiable (caller should fall
+    back to a full 200 response, or 416 for the "unsatisfiable" case).
+    """
+    if not range_header or not range_header.lower().startswith("bytes="):
+        return None
+    spec = range_header.split("=", 1)[1].strip()
+    # We only support a single range spec (audio scrubbing only needs one).
+    if "," in spec:
+        spec = spec.split(",", 1)[0].strip()
+    if "-" not in spec:
+        return None
+    start_str, end_str = spec.split("-", 1)
+    start_str, end_str = start_str.strip(), end_str.strip()
+    try:
+        if start_str == "":
+            # Suffix range: `bytes=-N` → last N bytes.
+            if end_str == "":
+                return None
+            suffix = int(end_str)
+            if suffix <= 0:
+                return None
+            start = max(0, file_size - suffix)
+            end = file_size - 1
+        else:
+            start = int(start_str)
+            end = int(end_str) if end_str else file_size - 1
+    except ValueError:
+        return None
+    if start < 0 or end < start or start >= file_size:
+        return None
+    end = min(end, file_size - 1)
+    return start, end
+
+
+def serve_audio_with_range(
+    request: Request,
+    path: str,
+    filename: Optional[str] = None,
+    as_attachment: bool = False,
+) -> Response:
+    """
+    Serve an on-disk audio file with HTTP Range support so browsers can seek.
+
+    - No Range header → 200 OK, full body, `Accept-Ranges: bytes` advertised.
+    - Valid Range header → 206 Partial Content with correct
+      `Content-Range: bytes start-end/total` and only the requested slice.
+    - Malformed / unsatisfiable Range → 416 Requested Range Not Satisfiable.
+
+    Content-Disposition is `inline` for the audio-player use case; set
+    `as_attachment=True` for browser "Save as" behavior on downloads.
+    """
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Audio file not found")
+
+    file_size = os.path.getsize(path)
+    range_header = request.headers.get("range") or request.headers.get("Range")
+
+    disposition_type = "attachment" if as_attachment else "inline"
+    disp_value = disposition_type
+    if filename:
+        # RFC 6266 — plain quoted form is enough for our sanitized filenames.
+        disp_value = f'{disposition_type}; filename="{filename}"'
+
+    base_headers = {
+        "Accept-Ranges": "bytes",
+        "Content-Disposition": disp_value,
+        # Prevent intermediary caches from serving a stale partial to a full
+        # request or vice-versa.
+        "Cache-Control": "no-cache",
+    }
+
+    if range_header is None:
+        # Full file — but still advertise range support so the browser can
+        # scrub on subsequent requests.
+        def _full_iter():
+            with open(path, "rb") as f:
+                while True:
+                    data = f.read(RANGE_CHUNK_SIZE)
+                    if not data:
+                        break
+                    yield data
+        headers = {**base_headers, "Content-Length": str(file_size)}
+        return StreamingResponse(
+            _full_iter(),
+            media_type="audio/mpeg",
+            headers=headers,
+        )
+
+    parsed = _parse_range_header(range_header, file_size)
+    if parsed is None:
+        # Unsatisfiable / malformed — RFC 7233 mandates 416 with Content-Range: */size
+        return Response(
+            status_code=416,
+            headers={
+                "Content-Range": f"bytes */{file_size}",
+                "Accept-Ranges": "bytes",
+            },
+        )
+    start, end = parsed
+    length = end - start + 1
+
+    def _range_iter():
+        with open(path, "rb") as f:
+            f.seek(start)
+            remaining = length
+            while remaining > 0:
+                data = f.read(min(RANGE_CHUNK_SIZE, remaining))
+                if not data:
+                    break
+                remaining -= len(data)
+                yield data
+
+    headers = {
+        **base_headers,
+        "Content-Range": f"bytes {start}-{end}/{file_size}",
+        "Content-Length": str(length),
+    }
+    return StreamingResponse(
+        _range_iter(),
+        status_code=206,
+        media_type="audio/mpeg",
+        headers=headers,
+    )
+
+
 @app.get("/api/jobs/{job_id}/download")
-async def download_job_audio(job_id: str):
+async def download_job_audio(job_id: str, request: Request):
     """Download the audio file for a completed job."""
     try:
         job = await db.jobs.find_one({"_id": ObjectId(job_id)})
@@ -1680,20 +1813,21 @@ async def download_job_audio(job_id: str):
     # Sanitize filename
     safe_name = re.sub(r'[^a-zA-Z0-9_-]', '_', job["name"])[:50]
     filename = f"{safe_name}.mp3"
-    
-    return FileResponse(
+
+    # Range-aware. `as_attachment=True` preserves the "Save as" behavior for
+    # explicit downloads, but the browser's <audio> element ignores
+    # Content-Disposition so seeking works the same in the in-page player.
+    return serve_audio_with_range(
+        request,
         path=audio_path,
-        media_type="audio/mpeg",
         filename=filename,
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"'
-        }
+        as_attachment=True,
     )
 
 
 @app.get("/api/jobs/{job_id}/chunks/{chunk_index}/audio")
-async def get_chunk_audio(job_id: str, chunk_index: int):
-    """Stream audio for a specific chunk."""
+async def get_chunk_audio(job_id: str, chunk_index: int, request: Request):
+    """Stream audio for a specific chunk (Range-aware so the chunk player can scrub)."""
     try:
         job = await db.jobs.find_one({"_id": ObjectId(job_id)})
     except:
@@ -1715,11 +1849,14 @@ async def get_chunk_audio(job_id: str, chunk_index: int):
     # Sanitize filename
     safe_name = re.sub(r'[^a-zA-Z0-9_-]', '_', job["name"])[:30]
     filename = f"{safe_name}_chunk_{chunk_index + 1}.mp3"
-    
-    return FileResponse(
+
+    # Inline disposition so the browser <audio> element plays it directly and
+    # can send Range requests for scrubbing.
+    return serve_audio_with_range(
+        request,
         path=audio_path,
-        media_type="audio/mpeg",
-        filename=filename
+        filename=filename,
+        as_attachment=False,
     )
 
 
