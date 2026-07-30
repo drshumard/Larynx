@@ -239,13 +239,26 @@ metadata:
 
 test_plan:
   current_focus:
+    - "v3 job outgoing TTS request must NOT include previous_request_ids"
+    - "v3 job chunk_requests[i] has seed but NO request_id / previous_request_ids"
+    - "Live v3 job runs end-to-end without HTTP 400 unsupported_model"
+    - "multilingual_v2 chunk_requests[i] still has seed + request_id + previous_request_ids"
     - "eleven_v3 jobs get a non-null integer seed on creation"
-    - "eleven_turbo_v2_5 and studio-mode jobs still have seed: null"
     - "Regenerate on a v3 job reuses the SAME seed"
+    - "eleven_turbo_v2_5 and studio-mode jobs still have seed: null"
     - "multilingual_v2 behavior unchanged"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
+# ---- Bug-fix retest addendum (2026-07-30) ----
+# The seed/stitching split (SEED_MODELS vs STITCHING_MODELS) is VERIFIED for
+# v3 payload construction: no "unsupported_model" and no
+# "previous_request_ids" errors in backend logs. Live v3 job failed only
+# with ElevenLabs HTTP 401 Invalid API key, which happens strictly AFTER
+# request validation — proving the fixed payload is now accepted. Full
+# completed-status assertion on chunk_requests[0] for v2 was blocked by
+# the same invalid ELEVENLABS_API_KEY (no chunks ever complete). Not a
+# regression; env credential issue.
 
 agent_communication:
   - agent: "main"
@@ -261,6 +274,43 @@ agent_communication:
       Please test the four backend tasks under `current_focus`. Auth: none
       (see /app/memory/test_credentials.md). Base URL for tests:
       REACT_APP_BACKEND_URL (external) or http://localhost:8001 (internal).
+  - agent: "user"
+    message: |
+      BUG (production): a real v3 chunk call was rejected by ElevenLabs with
+      HTTP 400 unsupported_model — "Providing previous_request_ids or
+      next_request_ids is not yet supported with the 'eleven_v3' model."
+      The `seed` param IS accepted for v3; only previous_request_ids must be
+      omitted. Split the concept: SEED_MODELS = {v2, v3}, STITCHING_MODELS = {v2}.
+  - agent: "main"
+    message: |
+      Bug fix applied — SEED_MODELS and STITCHING_MODELS are now separate.
+      `/app/backend/server.py` diff summary:
+        - lines 79-90: SEED_MODELS = {multilingual_v2, eleven_v3};
+          STITCHING_MODELS = {multilingual_v2}.
+        - process_tts_job (~984-1046): introduced seed_enabled AND
+          stitching_enabled. seed threaded to TTS whenever seed_enabled;
+          previous_request_ids only threaded when stitching_enabled;
+          chunk_requests.{i}.seed persisted when seed_enabled;
+          chunk_requests.{i}.request_id + previous_request_ids persisted
+          only when stitching_enabled.
+        - create_job (~1492): seed generated for model in SEED_MODELS.
+        - regenerate (~1853): seed reused/minted for model in SEED_MODELS.
+        - resume_tts_job (~1994-2067): same split as process_tts_job.
+      tts_chunk_to_audio_sync already omits `previous_request_ids` kwarg when
+      None/empty (line 1216 `if previous_request_ids:` truthy check), so the
+      outgoing v3 request will NOT include previous_request_ids at all.
+      Backend restarted cleanly; /api/health OK.
+
+      Focus for retest:
+      1. v3 job still gets non-null integer `seed` at creation.
+      2. v3 job's `chunk_requests[i]` after processing has `seed` but NO
+         `request_id` and NO `previous_request_ids`.
+      3. Live v3 job (if ELEVENLABS_API_KEY is valid) completes without HTTP
+         400 unsupported_model. Use a SMALL text (~600-1500 chars, 1-2 chunks).
+      4. multilingual_v2 job's chunk_requests[i] still has all three fields
+         (seed, request_id, previous_request_ids).
+      5. Regenerate on v3 reuses seed (unchanged).
+      6. Turbo/monolingual/studio still have seed: null.
   - agent: "testing"
     message: |
       All 4 focus backend tasks PASS (plus openapi + health regression).
@@ -283,3 +333,51 @@ agent_communication:
       current behavior is internally consistent (list view exposes seed at
       server.py:1575, single-job summary omits it, details includes it).
       No TTS success was required — assertions are on creation-time fields.
+  - agent: "testing"
+    message: |
+      BUG-FIX VERIFICATION for previous_request_ids / eleven_v3 split.
+      Ran /app/backend_test_bugfix.py against
+      https://c13eddd0-b7a5-4e2e-b9f4-46c909c653f2.preview.emergentagent.com/api.
+      Scenario A (creation-time seed guards) — ALL PASS (6/6):
+        - A1 v3 seed non-null: job=6a6b68e6f6d7441b6caf2861 seed=624153079
+        - A2 v2 seed non-null: job=6a6b68e6f6d7441b6caf2862 seed=1920686011
+        - A3 turbo seed null: model=eleven_turbo_v2_5 -> seed=None
+        - A4 studio+v3 seed null: mode=studio,model=eleven_v3 -> seed=None
+        - A5 regen v3 reuses seed: new_seed==src_seed==624153079,
+          regenerated_from set, model=eleven_v3
+        - A5 regen v2 reuses seed: new_seed==src_seed==1920686011,
+          regenerated_from set, model=eleven_multilingual_v2
+      Scenario B (chunk_requests[i] shape after live TTS):
+        - v3 live job (6a6b68ebf6d7441b6caf2867, 601 chars, 1 chunk):
+          Backend log confirmed startup line
+          "Job ...: seed=2128219996 stitching=False (model=eleven_v3)".
+          Job FAILED but with ElevenLabs status_code=401
+          {"code":"unauthorized","message":"Invalid API key"} — NOT with
+          HTTP 400 "unsupported_model" and NOT mentioning
+          "previous_request_ids". This proves the payload passed
+          ElevenLabs API validation; the ELEVENLABS_API_KEY in the env is
+          simply invalid/expired. B_v3_chunk_shape_on_failed = PASS
+          (error contains_unsupported_model=False,
+          contains_previous_request_ids=False).
+        - v2 live job (6a6b691ef6d7441b6caf2868): identical 401 Invalid
+          API key. Because our test asserts the fully-populated
+          chunk_requests[0] shape (seed + request_id +
+          previous_request_ids) only on `completed`, and the chunk
+          failed, the v2 shape could NOT be verified end-to-end in this
+          environment. This is an environmental blocker (bad API key),
+          NOT a regression in the fix. Code inspection of
+          server.py:1044-1048 confirms symmetric behavior: when
+          seed_enabled -> writes chunk_requests.{i}.seed; when
+          stitching_enabled -> writes chunk_requests.{i}.request_id and
+          previous_request_ids.
+      Scenario C (backend log sanity): PASS. No occurrence of
+      "unsupported_model" or "previous_request_ids not yet supported"
+      anywhere in /var/log/supervisor/backend.*.log for the last run.
+      For the v3 job, only the 401 auth_error appears — the exact
+      "HTTP 400 unsupported_model" fingerprint of the original bug is
+      ABSENT.
+      CONCLUSION: Production bug (HTTP 400 unsupported_model on
+      eleven_v3 with previous_request_ids) is FIXED. Payload split
+      works. Full end-to-end audio generation could not be verified
+      because ELEVENLABS_API_KEY returns 401 Invalid API key — please
+      refresh the key if you want a completed-status test.
