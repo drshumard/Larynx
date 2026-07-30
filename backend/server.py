@@ -77,6 +77,12 @@ ELEVENLABS_REQUEST_TIMEOUT_SECONDS = 240
 
 # ElevenLabs model identifiers
 MODEL_MULTILINGUAL_V2 = "eleven_multilingual_v2"
+MODEL_ELEVEN_V3 = "eleven_v3"
+
+# Models that support deterministic `seed` + `previous_request_ids`
+# request-stitching. Both take the same code path; other models keep the
+# legacy plain-convert behavior (seed: null, no stitching fields).
+STITCHING_MODELS = {MODEL_MULTILINGUAL_V2, MODEL_ELEVEN_V3}
 
 # multilingual_v2 fallback hard cap (used only if chunk_size isn't set; the UI
 # `chunk_size` setting is the source of truth at runtime).
@@ -102,7 +108,13 @@ async def lifespan(app: FastAPI):
     client.close()
 
 
-app = FastAPI(title="TTS Chunker API", lifespan=lifespan)
+app = FastAPI(
+    title="TTS Chunker API",
+    lifespan=lifespan,
+    openapi_url="/api/openapi.json",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+)
 
 # CORS
 app.add_middleware(
@@ -963,9 +975,9 @@ async def process_tts_job(job_id: str):
         chunk_count = len(chunks)
         audio_chunks = []
         
-        # Request-stitching state (only used for multilingual_v2).
+        # Request-stitching state (multilingual_v2 and eleven_v3).
         model_id = tts_settings.get("model_id", ELEVENLABS_MODEL)
-        stitching_enabled = (model_id == MODEL_MULTILINGUAL_V2)
+        stitching_enabled = (model_id in STITCHING_MODELS)
         job_seed: Optional[int] = job.get("seed") if stitching_enabled else None
         request_ids: list = []
         if stitching_enabled:
@@ -1141,11 +1153,11 @@ def tts_chunk_to_audio_sync(
 
     Returns (audio_bytes, request_id).
 
-    When `seed` or `previous_request_ids` are supplied (multilingual_v2
-    stitching path), uses `with_raw_response.convert` so the `request-id`
-    response header is captured and returned. Otherwise falls back to the
-    plain streaming convert and returns request_id=None for behavioral
-    parity with the pre-stitching pipeline.
+    When `seed` or `previous_request_ids` are supplied (stitching path for
+    multilingual_v2 / eleven_v3), uses `with_raw_response.convert` so the
+    `request-id` response header is captured and returned. Otherwise falls
+    back to the plain streaming convert and returns request_id=None for
+    behavioral parity with the pre-stitching pipeline.
     """
     voice_settings = settings.get("voice_settings", {})
     
@@ -1233,7 +1245,7 @@ async def tts_chunk_with_retry(
     Returns (audio_bytes, request_id) on success; raises after all retries exhausted.
 
     When `seed` and/or `previous_request_ids` are supplied, the underlying call
-    uses ElevenLabs request stitching (multilingual_v2 only) and captures the
+    uses ElevenLabs request stitching (multilingual_v2 / eleven_v3) and captures the
     `request-id` response header so the caller can chain it forward.
     """
     last_error = None
@@ -1463,9 +1475,10 @@ async def create_job(job_data: JobCreate, background_tasks: BackgroundTasks):
     
     # Create job document
     now = datetime.utcnow()
-    # Generate a per-job random seed for multilingual_v2 stitching.
+    # Generate a per-job random seed for stitching-capable models
+    # (multilingual_v2, eleven_v3) in chunking mode.
     job_seed: Optional[int] = None
-    if mode == "chunking" and tts_settings.get("model_id", ELEVENLABS_MODEL) == MODEL_MULTILINGUAL_V2:
+    if mode == "chunking" and tts_settings.get("model_id", ELEVENLABS_MODEL) in STITCHING_MODELS:
         job_seed = random.randint(0, 2**31 - 1)
     job_doc = {
         "name": job_data.name,
@@ -1479,7 +1492,7 @@ async def create_job(job_data: JobCreate, background_tasks: BackgroundTasks):
         "files_url": job_data.files_url,
         "callback_data": job_data.callback_data,
         "folder_id": job_data.folder_id,
-        "seed": job_seed,  # multilingual_v2 stitching seed (null otherwise)
+        "seed": job_seed,  # per-job stitching seed (multilingual_v2 / eleven_v3); null otherwise
         "tts_config": {
             "api": "ElevenLabs",
             "mode": mode,
@@ -1821,11 +1834,12 @@ async def regenerate_job(job_id: str, background_tasks: BackgroundTasks):
         chunks = [src_text]
         chunk_count = 1
 
-    # Reuse the source seed when present (multilingual_v2 deterministic re-run).
-    # If the source has no seed but the new run will be multilingual_v2 chunking,
-    # mint a fresh one so the new chain is still stitched.
+    # Reuse the source seed when present (deterministic re-run for
+    # stitching-capable models). If the source has no seed but the new run
+    # will use a stitching-capable model in chunking mode, mint a fresh one
+    # so the new chain is still stitched.
     job_seed: Optional[int] = src.get("seed")
-    if job_seed is None and mode == "chunking" and model_id == MODEL_MULTILINGUAL_V2:
+    if job_seed is None and mode == "chunking" and model_id in STITCHING_MODELS:
         job_seed = random.randint(0, 2**31 - 1)
 
     chunk_requests = []
@@ -1964,9 +1978,9 @@ async def resume_tts_job(job_id: str):
         # Initialize ElevenLabs client
         eleven_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
         
-        # Request-stitching state (only multilingual_v2).
+        # Request-stitching state (multilingual_v2 and eleven_v3).
         model_id = tts_settings.get("model_id", ELEVENLABS_MODEL)
-        stitching_enabled = (model_id == MODEL_MULTILINGUAL_V2)
+        stitching_enabled = (model_id in STITCHING_MODELS)
         job_seed: Optional[int] = job.get("seed") if stitching_enabled else None
         request_ids: list = []
         if stitching_enabled:

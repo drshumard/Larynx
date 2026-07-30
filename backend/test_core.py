@@ -17,7 +17,7 @@ from elevenlabs import ElevenLabs
 # Configuration
 ELEVENLABS_API_KEY = "sk_e80ab01e82f120260468d7955899f07b10ef028fdbc6a564"
 VOICE_ID = "LNHBM9NjjOl44Efsdmtl"
-MODEL_ID = "eleven_multilingual_v2"  # ElevenLabs v3 model
+MODEL_ID = "eleven_multilingual_v2"  # ElevenLabs model for this POC (v3 is eleven_v3)
 WEBHOOK_URL = "https://drshumard.app.n8n.cloud/webhook/cb298a5c-abcf-4596-bec3-e457f0798790"
 MAX_CHUNK_SIZE = 10000  # 10,000 characters max per TTS request
 

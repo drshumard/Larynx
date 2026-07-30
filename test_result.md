@@ -101,3 +101,185 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: |
+  Extend deterministic seed + request-stitching (currently only for
+  `eleven_multilingual_v2` chunking jobs) to also cover `eleven_v3` chunking
+  jobs. Studio mode, eleven_turbo_*, eleven_monolingual_v1 must remain
+  unchanged (seed: null, no stitching metadata). Also expose the FastAPI
+  OpenAPI spec at `/api/openapi.json` so automated tests can find it.
+
+backend:
+  - task: "eleven_v3 jobs get a non-null integer seed on creation"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Added STITCHING_MODELS = {eleven_multilingual_v2, eleven_v3} constant.
+          `create_job` (server.py:1478-1481) now generates job_seed when
+          model_id is in STITCHING_MODELS + chunking mode. Verify: POST
+          /api/settings model_id=eleven_v3, POST /api/jobs → GET /api/jobs/{id}
+          shows `seed` = integer.
+      - working: true
+        agent: "testing"
+        comment: |
+          PASS. Set settings to mode=chunking, model_id=eleven_v3, chunk_size=4500.
+          Created job → GET /api/jobs/{id}/details returned seed=741200809 (int in
+          [0, 2^31-1]), tts_config.model_id=eleven_v3, chunk_count=1. Behavior
+          matches spec. (Note: `GET /api/jobs/{id}` does not include the seed
+          field; only `/details` does — this is by-design in current code.)
+  - task: "eleven_turbo_v2_5 and studio-mode jobs still have seed: null"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Guard uses `in STITCHING_MODELS` — turbo/monolingual not included.
+          Verify: switch settings to eleven_turbo_v2_5 → new job has seed: null.
+          Same for studio mode.
+      - working: true
+        agent: "testing"
+        comment: |
+          PASS on both branches. (a) chunking + eleven_turbo_v2_5: created job
+          has seed=None, tts_config.model_id=eleven_turbo_v2_5. (b) studio +
+          eleven_v3: seed=None even though model is stitching-capable, because
+          the guard requires mode=chunking. Studio mode correctly bypasses seed
+          generation.
+  - task: "Regenerate on a v3 job reuses the SAME seed"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          `regenerate` (server.py:1838-1843) now reuses src.seed for any
+          STITCHING_MODELS model. Verify: POST /api/jobs/{id}/regenerate on a
+          v3 job → new job.seed == source job.seed, regenerated_from set.
+      - working: true
+        agent: "testing"
+        comment: |
+          PASS. Regenerated a v3 source job (seed=741200809). New job returned
+          200, has identical seed=741200809, tts_config.model_id=eleven_v3, and
+          regenerated_from equal to source job id. Also verified the same
+          behavior on v2: source seed=187210629 was preserved on regenerate.
+  - task: "multilingual_v2 behavior unchanged"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          v2 chunker selection (server.py:1425, 1826) untouched. Seed guard
+          extended, not narrowed. Verify: v2 job still gets a seed, still
+          chunks via split_text_into_chunks_v2.
+      - working: true
+        agent: "testing"
+        comment: |
+          PASS. chunking + eleven_multilingual_v2 job created with
+          seed=187210629 (int), tts_config.model_id=eleven_multilingual_v2.
+          Regenerate reused the same seed. No behavior change vs. pre-v3
+          extension.
+  - task: "OpenAPI spec accessible at /api/openapi.json"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: |
+          FastAPI() reconfigured with openapi_url=/api/openapi.json,
+          docs_url=/api/docs, redoc_url=/api/redoc. Verified via
+          `curl localhost:8001/api/openapi.json` returns spec.
+
+frontend:
+  - task: "Seed UI lights up for v3 jobs (badge, regenerate button, chunk stitching)"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "low"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          No frontend edits made. UI conditions on presence of job.seed (not
+          on model name), so v3 jobs automatically render the Sparkles badge,
+          the "Regenerate w/ Same Seed" button, and the chunk "Stitching"
+          section once backend attaches a seed. Not requesting frontend tests
+          per project policy — will ask user if UI verification is desired.
+
+metadata:
+  created_by: "main_agent"
+  version: "1.1"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "eleven_v3 jobs get a non-null integer seed on creation"
+    - "eleven_turbo_v2_5 and studio-mode jobs still have seed: null"
+    - "Regenerate on a v3 job reuses the SAME seed"
+    - "multilingual_v2 behavior unchanged"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: |
+      Extended STITCHING_MODELS = {eleven_multilingual_v2, eleven_v3}.
+      Changes in /app/backend/server.py: constants (79-85), FastAPI() OpenAPI
+      config (107-113), process_tts_job stitching guard (~980), create_job
+      seed guard (~1481), regenerate seed guard (~1842), resume_tts_job
+      stitching guard (~1983). Chunker selection intentionally NOT changed —
+      v3 keeps its default sentence chunker; only seed + previous_request_ids
+      behavior was extended (matches ElevenLabs docs: v3 supports both).
+      No frontend changes needed (UI keys off job.seed presence, not model).
+      Please test the four backend tasks under `current_focus`. Auth: none
+      (see /app/memory/test_credentials.md). Base URL for tests:
+      REACT_APP_BACKEND_URL (external) or http://localhost:8001 (internal).
+  - agent: "testing"
+    message: |
+      All 4 focus backend tasks PASS (plus openapi + health regression).
+      Ran /app/backend_test.py against
+      https://c13eddd0-b7a5-4e2e-b9f4-46c909c653f2.preview.emergentagent.com/api.
+      Results (9/9 pass):
+        - openapi_reachable: 200, /api/jobs in paths
+        - health: {"status":"healthy","service":"tts-chunker"}
+        - v3_seed_generated: job seed=741200809 (int), model=eleven_v3, chunks=1
+        - turbo_seed_null: seed=None with eleven_turbo_v2_5
+        - studio_seed_null: seed=None with studio+eleven_v3 (guard requires chunking)
+        - v2_seed_generated: seed=187210629 (int) with eleven_multilingual_v2
+        - regenerate_reuses_seed_v3: new_seed==src_seed==741200809, regenerated_from set
+        - regenerate_reuses_seed_v2: new_seed==src_seed==187210629, regenerated_from set
+        - cleanup: all 6 DELETE calls returned 200
+      IMPORTANT NOTE FOR MAIN AGENT: The seed field is exposed by
+      `GET /api/jobs/{id}/details`, NOT by `GET /api/jobs/{id}` (see
+      server.py:1600-1614). Tests use `/details`. If the review intent was to
+      also expose seed on the lightweight endpoint, main agent can decide;
+      current behavior is internally consistent (list view exposes seed at
+      server.py:1575, single-job summary omits it, details includes it).
+      No TTS success was required — assertions are on creation-time fields.

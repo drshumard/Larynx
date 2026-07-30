@@ -1,471 +1,297 @@
 """
-Backend API Testing for TTS Chunker App
-Tests all API endpoints with proper error handling and reporting
+Backend regression + new-behavior tests for /app/backend/server.py after
+extending seed + request-stitching to `eleven_v3`.
+
+Uses the external REACT_APP_BACKEND_URL (APP_URL) with `/api` prefix.
+Note: `GET /api/jobs/{id}` does NOT include the seed field — use
+`GET /api/jobs/{id}/details` (which returns seed, tts_config,
+regenerated_from, chunk_requests).
 """
 
-import requests
-import time
+import os
 import sys
-from datetime import datetime
+import time
+import requests
 
-# Use the public endpoint
-BASE_URL = "https://voice-studio-58.preview.emergentagent.com"
+BASE = os.environ.get(
+    "REACT_APP_BACKEND_URL",
+    "https://c13eddd0-b7a5-4e2e-b9f4-46c909c653f2.preview.emergentagent.com",
+).rstrip("/")
+API = f"{BASE}/api"
 
-class TTSChunkerAPITester:
-    def __init__(self):
-        self.base_url = BASE_URL
-        self.tests_run = 0
-        self.tests_passed = 0
-        self.test_results = []
-        self.created_job_id = None
-        
-    def log_test(self, name, passed, message="", response_data=None):
-        """Log test result"""
-        self.tests_run += 1
-        if passed:
-            self.tests_passed += 1
-            print(f"✅ PASS: {name}")
-            if message:
-                print(f"   {message}")
-        else:
-            print(f"❌ FAIL: {name}")
-            print(f"   {message}")
-        
-        self.test_results.append({
-            "test": name,
-            "passed": passed,
-            "message": message,
-            "response": response_data
-        })
-        print()
-    
-    def test_health_check(self):
-        """Test health check endpoint"""
-        print("🔍 Testing Health Check...")
+# Realistic long-form sample (~1600+ chars) - Herman Melville-esque passage
+SAMPLE_TEXT = (
+    "Call me Ishmael. Some years ago—never mind how long precisely—having "
+    "little or no money in my purse, and nothing particular to interest me "
+    "on shore, I thought I would sail about a little and see the watery "
+    "part of the world. It is a way I have of driving off the spleen and "
+    "regulating the circulation. Whenever I find myself growing grim about "
+    "the mouth; whenever it is a damp, drizzly November in my soul; "
+    "whenever I find myself involuntarily pausing before coffin warehouses, "
+    "and bringing up the rear of every funeral I meet; and especially "
+    "whenever my hypos get such an upper hand of me, that it requires a "
+    "strong moral principle to prevent me from deliberately stepping into "
+    "the street, and methodically knocking people's hats off—then, I "
+    "account it high time to get to sea as soon as I can. This is my "
+    "substitute for pistol and ball. With a philosophical flourish Cato "
+    "throws himself upon his sword; I quietly take to the ship. There is "
+    "nothing surprising in this. If they but knew it, almost all men in "
+    "their degree, some time or other, cherish very nearly the same "
+    "feelings towards the ocean with me. There now is your insular city of "
+    "the Manhattoes, belted round by wharves as Indian isles by coral "
+    "reefs—commerce surrounds it with her surf. Right and left, the streets "
+    "take you waterward. Its extreme downtown is the battery, where that "
+    "noble mole is washed by waves, and cooled by breezes, which a few "
+    "hours previous were out of sight of land. Look at the crowds of "
+    "water-gazers there. Circumambulate the city of a dreamy Sabbath "
+    "afternoon. Go from Corlears Hook to Coenties Slip, and from thence, "
+    "by Whitehall, northward. What do you see?"
+)
+
+created_job_ids: list = []
+results = {}  # test_name -> (pass_bool, evidence_str)
+
+
+def record(name, ok, evidence=""):
+    results[name] = (ok, evidence)
+    tag = "PASS" if ok else "FAIL"
+    print(f"[{tag}] {name}: {evidence}")
+
+
+def _put_settings(patch: dict):
+    """Merge patch into current settings and PUT full body."""
+    cur = requests.get(f"{API}/settings", timeout=15).json()
+    cur.pop("_id", None)
+    cur.update(patch)
+    r = requests.put(f"{API}/settings", json=cur, timeout=20)
+    r.raise_for_status()
+    return r.json()
+
+
+def _create_job(name: str):
+    payload = {"name": name, "text": SAMPLE_TEXT}
+    r = requests.post(f"{API}/jobs", json=payload, timeout=30)
+    r.raise_for_status()
+    j = r.json()
+    jid = j["id"]
+    created_job_ids.append(jid)
+    return jid
+
+
+def _get_details(job_id: str):
+    r = requests.get(f"{API}/jobs/{job_id}/details", timeout=15)
+    r.raise_for_status()
+    return r.json()
+
+
+# 1. OpenAPI reachable
+def test_openapi():
+    try:
+        r = requests.get(f"{API}/openapi.json", timeout=15)
+        ok_status = r.status_code == 200
+        data = r.json()
+        has_paths = "/api/jobs" in (data.get("paths") or {})
+        ok = ok_status and has_paths
+        record(
+            "openapi_reachable",
+            ok,
+            f"status={r.status_code}, /api/jobs in paths={has_paths}",
+        )
+    except Exception as e:
+        record("openapi_reachable", False, f"exception: {e}")
+
+
+# 2. Health
+def test_health():
+    try:
+        r = requests.get(f"{API}/health", timeout=15)
+        data = r.json()
+        ok = r.status_code == 200 and data.get("status") == "healthy"
+        record("health", ok, f"status={r.status_code} body={data}")
+    except Exception as e:
+        record("health", False, f"exception: {e}")
+
+
+# 3. v3 seed generation
+def test_v3_seed():
+    try:
+        _put_settings({"mode": "chunking", "model_id": "eleven_v3", "chunk_size": 4500})
+        jid = _create_job("v3 seed test")
+        time.sleep(0.3)
+        det = _get_details(jid)
+        seed = det.get("seed")
+        model_id = (det.get("tts_config") or {}).get("model_id")
+        chunk_count = det.get("chunk_count", 0)
+        ok = (
+            isinstance(seed, int)
+            and 0 <= seed <= 2**31 - 1
+            and model_id == "eleven_v3"
+            and chunk_count >= 1
+        )
+        record(
+            "v3_seed_generated",
+            ok,
+            f"job_id={jid} seed={seed} model={model_id} chunks={chunk_count}",
+        )
+        return jid
+    except Exception as e:
+        record("v3_seed_generated", False, f"exception: {e}")
+        return None
+
+
+# 4. turbo -> seed null
+def test_turbo_seed_null():
+    try:
+        _put_settings({"mode": "chunking", "model_id": "eleven_turbo_v2_5"})
+        jid = _create_job("turbo seed null test")
+        time.sleep(0.3)
+        det = _get_details(jid)
+        seed = det.get("seed")
+        model_id = (det.get("tts_config") or {}).get("model_id")
+        ok = seed is None and model_id == "eleven_turbo_v2_5"
+        record(
+            "turbo_seed_null",
+            ok,
+            f"job_id={jid} seed={seed} model={model_id}",
+        )
+    except Exception as e:
+        record("turbo_seed_null", False, f"exception: {e}")
+
+
+# 5. studio mode -> seed null even with v3 model
+def test_studio_seed_null():
+    try:
+        _put_settings({"mode": "studio", "model_id": "eleven_v3"})
+        jid = _create_job("studio v3 seed null test")
+        time.sleep(0.3)
+        det = _get_details(jid)
+        seed = det.get("seed")
+        cfg = det.get("tts_config") or {}
+        ok = (
+            seed is None
+            and cfg.get("mode") == "studio"
+            and cfg.get("model_id") == "eleven_v3"
+        )
+        record(
+            "studio_seed_null",
+            ok,
+            f"job_id={jid} seed={seed} mode={cfg.get('mode')} model={cfg.get('model_id')}",
+        )
+    except Exception as e:
+        record("studio_seed_null", False, f"exception: {e}")
+    finally:
         try:
-            response = requests.get(f"{self.base_url}/api/health", timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("status") == "healthy":
-                    self.log_test(
-                        "Health Check",
-                        True,
-                        f"Status: {response.status_code}, Service: {data.get('service')}"
-                    )
-                    return True
-                else:
-                    self.log_test(
-                        "Health Check",
-                        False,
-                        f"Unexpected response: {data}"
-                    )
-                    return False
-            else:
-                self.log_test(
-                    "Health Check",
-                    False,
-                    f"Expected 200, got {response.status_code}"
-                )
-                return False
-                
-        except Exception as e:
-            self.log_test("Health Check", False, f"Error: {str(e)}")
-            return False
-    
-    def test_create_job(self):
-        """Test creating a TTS job"""
-        print("🔍 Testing Create Job (POST /api/jobs)...")
-        
-        # Create test text (500-1000 chars for faster testing)
-        test_text = """
-        This is a comprehensive test of the text-to-speech chunking system. 
-        The system is designed to handle very long texts by breaking them into manageable chunks. 
-        Each chunk is processed separately through the ElevenLabs API. 
-        The resulting audio segments are then merged into a single MP3 file. 
-        This approach allows for processing texts that would otherwise exceed API limits. 
-        The chunking algorithm respects sentence boundaries to ensure natural speech flow. 
-        Progress is tracked throughout the process so users can monitor the conversion. 
-        When complete, users can download the final audio file. 
-        This test uses a shorter sample to verify functionality without long wait times.
-        The system handles various text formats and maintains audio quality throughout the process.
-        """ * 2  # Repeat to get ~600 chars
-        
-        payload = {
-            "name": f"Test Job {datetime.now().strftime('%H:%M:%S')}",
-            "text": test_text.strip()
-        }
-        
-        try:
-            response = requests.post(
-                f"{self.base_url}/api/jobs",
-                json=payload,
-                headers={"Content-Type": "application/json"},
-                timeout=15
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                self.created_job_id = data.get("id")
-                
-                # Verify response structure
-                required_fields = ["id", "name", "status", "progress", "chunk_count", "text_length"]
-                missing_fields = [f for f in required_fields if f not in data]
-                
-                if missing_fields:
-                    self.log_test(
-                        "Create Job",
-                        False,
-                        f"Missing fields: {missing_fields}"
-                    )
-                    return False
-                
-                self.log_test(
-                    "Create Job",
-                    True,
-                    f"Job ID: {self.created_job_id}, Status: {data.get('status')}, Chunks: {data.get('chunk_count')}, Text Length: {data.get('text_length')}",
-                    data
-                )
-                return True
-            else:
-                error_msg = response.text
-                try:
-                    error_data = response.json()
-                    error_msg = error_data.get("detail", error_msg)
-                except:
-                    pass
-                
-                self.log_test(
-                    "Create Job",
-                    False,
-                    f"Expected 200, got {response.status_code}. Error: {error_msg}"
-                )
-                return False
-                
-        except Exception as e:
-            self.log_test("Create Job", False, f"Error: {str(e)}")
-            return False
-    
-    def test_list_jobs(self):
-        """Test listing all jobs"""
-        print("🔍 Testing List Jobs (GET /api/jobs)...")
-        
-        try:
-            response = requests.get(f"{self.base_url}/api/jobs", timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
-                
-                # Verify response structure
-                if "jobs" not in data or "total" not in data:
-                    self.log_test(
-                        "List Jobs",
-                        False,
-                        "Response missing 'jobs' or 'total' field"
-                    )
-                    return False
-                
-                jobs = data.get("jobs", [])
-                total = data.get("total", 0)
-                
-                self.log_test(
-                    "List Jobs",
-                    True,
-                    f"Found {len(jobs)} jobs (Total: {total})"
-                )
-                return True
-            else:
-                self.log_test(
-                    "List Jobs",
-                    False,
-                    f"Expected 200, got {response.status_code}"
-                )
-                return False
-                
-        except Exception as e:
-            self.log_test("List Jobs", False, f"Error: {str(e)}")
-            return False
-    
-    def test_get_job(self):
-        """Test getting a specific job"""
-        print("🔍 Testing Get Job (GET /api/jobs/{id})...")
-        
-        if not self.created_job_id:
-            self.log_test(
-                "Get Job",
+            _put_settings({"mode": "chunking"})
+        except Exception:
+            pass
+
+
+# 6. v2 unchanged
+def test_v2_seed():
+    try:
+        _put_settings({"mode": "chunking", "model_id": "eleven_multilingual_v2", "chunk_size": 4500})
+        jid = _create_job("v2 seed test")
+        time.sleep(0.3)
+        det = _get_details(jid)
+        seed = det.get("seed")
+        model_id = (det.get("tts_config") or {}).get("model_id")
+        ok = (
+            isinstance(seed, int)
+            and 0 <= seed <= 2**31 - 1
+            and model_id == "eleven_multilingual_v2"
+        )
+        record(
+            "v2_seed_generated",
+            ok,
+            f"job_id={jid} seed={seed} model={model_id}",
+        )
+        return jid
+    except Exception as e:
+        record("v2_seed_generated", False, f"exception: {e}")
+        return None
+
+
+# 7 & 8. Regenerate reuses seed
+def test_regenerate_reuses_seed(src_job_id, label, expected_model):
+    if not src_job_id:
+        record(f"regenerate_reuses_seed_{label}", False, "no source job id")
+        return
+    try:
+        src_det = _get_details(src_job_id)
+        src_seed = src_det.get("seed")
+
+        r = requests.post(f"{API}/jobs/{src_job_id}/regenerate", timeout=30)
+        if r.status_code != 200:
+            record(
+                f"regenerate_reuses_seed_{label}",
                 False,
-                "No job ID available (create job test may have failed)"
+                f"regenerate returned {r.status_code}: {r.text[:200]}",
             )
-            return False
-        
+            return
+        new_jid = r.json()["id"]
+        created_job_ids.append(new_jid)
+        time.sleep(0.3)
+
+        new_det = _get_details(new_jid)
+        new_seed = new_det.get("seed")
+        new_model = (new_det.get("tts_config") or {}).get("model_id")
+        regenerated_from = new_det.get("regenerated_from")
+
+        ok = (
+            isinstance(new_seed, int)
+            and new_seed == src_seed
+            and regenerated_from == src_job_id
+            and new_model == expected_model
+        )
+        record(
+            f"regenerate_reuses_seed_{label}",
+            ok,
+            f"src={src_job_id} src_seed={src_seed} new_job={new_jid} new_seed={new_seed} "
+            f"model={new_model} regenerated_from={regenerated_from}",
+        )
+    except Exception as e:
+        record(f"regenerate_reuses_seed_{label}", False, f"exception: {e}")
+
+
+# 9. Cleanup
+def cleanup():
+    ok_all = True
+    per = []
+    for jid in list(created_job_ids):
         try:
-            response = requests.get(
-                f"{self.base_url}/api/jobs/{self.created_job_id}",
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                
-                # Verify response structure
-                required_fields = ["id", "name", "status", "progress", "chunk_count"]
-                missing_fields = [f for f in required_fields if f not in data]
-                
-                if missing_fields:
-                    self.log_test(
-                        "Get Job",
-                        False,
-                        f"Missing fields: {missing_fields}"
-                    )
-                    return False
-                
-                self.log_test(
-                    "Get Job",
-                    True,
-                    f"Job ID: {data.get('id')}, Status: {data.get('status')}, Progress: {data.get('progress')}%"
-                )
-                return True
-            else:
-                self.log_test(
-                    "Get Job",
-                    False,
-                    f"Expected 200, got {response.status_code}"
-                )
-                return False
-                
+            r = requests.delete(f"{API}/jobs/{jid}", timeout=15)
+            per.append(f"{jid}={r.status_code}")
+            if r.status_code not in (200, 204):
+                ok_all = False
         except Exception as e:
-            self.log_test("Get Job", False, f"Error: {str(e)}")
-            return False
-    
-    def test_job_processing(self):
-        """Test job processing by polling until completion or timeout"""
-        print("🔍 Testing Job Processing (polling for completion)...")
-        
-        if not self.created_job_id:
-            self.log_test(
-                "Job Processing",
-                False,
-                "No job ID available"
-            )
-            return False
-        
-        max_wait_time = 60  # 60 seconds max wait
-        poll_interval = 3  # Check every 3 seconds
-        start_time = time.time()
-        
-        try:
-            while time.time() - start_time < max_wait_time:
-                response = requests.get(
-                    f"{self.base_url}/api/jobs/{self.created_job_id}",
-                    timeout=10
-                )
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    status = data.get("status")
-                    progress = data.get("progress", 0)
-                    
-                    print(f"   Status: {status}, Progress: {progress}%")
-                    
-                    if status == "completed":
-                        elapsed = time.time() - start_time
-                        self.log_test(
-                            "Job Processing",
-                            True,
-                            f"Job completed in {elapsed:.1f}s. Duration: {data.get('duration_seconds', 0):.2f}s"
-                        )
-                        return True
-                    elif status == "failed":
-                        error = data.get("error", "Unknown error")
-                        self.log_test(
-                            "Job Processing",
-                            False,
-                            f"Job failed: {error}"
-                        )
-                        return False
-                    
-                    # Still processing, wait and check again
-                    time.sleep(poll_interval)
-                else:
-                    self.log_test(
-                        "Job Processing",
-                        False,
-                        f"Error polling job: {response.status_code}"
-                    )
-                    return False
-            
-            # Timeout
-            self.log_test(
-                "Job Processing",
-                False,
-                f"Job did not complete within {max_wait_time}s (this may be expected for longer texts)"
-            )
-            return False
-            
-        except Exception as e:
-            self.log_test("Job Processing", False, f"Error: {str(e)}")
-            return False
-    
-    def test_download_audio(self):
-        """Test downloading completed job audio"""
-        print("🔍 Testing Download Audio (GET /api/jobs/{id}/download)...")
-        
-        if not self.created_job_id:
-            self.log_test(
-                "Download Audio",
-                False,
-                "No job ID available"
-            )
-            return False
-        
-        try:
-            # First check if job is completed
-            job_response = requests.get(
-                f"{self.base_url}/api/jobs/{self.created_job_id}",
-                timeout=10
-            )
-            
-            if job_response.status_code != 200:
-                self.log_test(
-                    "Download Audio",
-                    False,
-                    "Could not fetch job status"
-                )
-                return False
-            
-            job_data = job_response.json()
-            if job_data.get("status") != "completed":
-                self.log_test(
-                    "Download Audio",
-                    False,
-                    f"Job not completed (status: {job_data.get('status')}). Cannot test download."
-                )
-                return False
-            
-            # Try to download
-            response = requests.get(
-                f"{self.base_url}/api/jobs/{self.created_job_id}/download",
-                timeout=30
-            )
-            
-            if response.status_code == 200:
-                content_type = response.headers.get("Content-Type", "")
-                content_length = len(response.content)
-                
-                if "audio" in content_type or content_length > 0:
-                    self.log_test(
-                        "Download Audio",
-                        True,
-                        f"Downloaded {content_length} bytes, Content-Type: {content_type}"
-                    )
-                    return True
-                else:
-                    self.log_test(
-                        "Download Audio",
-                        False,
-                        f"Invalid audio response: {content_type}, {content_length} bytes"
-                    )
-                    return False
-            else:
-                self.log_test(
-                    "Download Audio",
-                    False,
-                    f"Expected 200, got {response.status_code}"
-                )
-                return False
-                
-        except Exception as e:
-            self.log_test("Download Audio", False, f"Error: {str(e)}")
-            return False
-    
-    def test_delete_job(self):
-        """Test deleting a job"""
-        print("🔍 Testing Delete Job (DELETE /api/jobs/{id})...")
-        
-        if not self.created_job_id:
-            self.log_test(
-                "Delete Job",
-                False,
-                "No job ID available"
-            )
-            return False
-        
-        try:
-            response = requests.delete(
-                f"{self.base_url}/api/jobs/{self.created_job_id}",
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                
-                # Verify job is deleted by trying to fetch it
-                verify_response = requests.get(
-                    f"{self.base_url}/api/jobs/{self.created_job_id}",
-                    timeout=10
-                )
-                
-                if verify_response.status_code == 404:
-                    self.log_test(
-                        "Delete Job",
-                        True,
-                        f"Job deleted successfully: {data.get('message', '')}"
-                    )
-                    return True
-                else:
-                    self.log_test(
-                        "Delete Job",
-                        False,
-                        "Job still exists after deletion"
-                    )
-                    return False
-            else:
-                self.log_test(
-                    "Delete Job",
-                    False,
-                    f"Expected 200, got {response.status_code}"
-                )
-                return False
-                
-        except Exception as e:
-            self.log_test("Delete Job", False, f"Error: {str(e)}")
-            return False
-    
-    def run_all_tests(self):
-        """Run all backend API tests"""
-        print("=" * 70)
-        print("TTS CHUNKER BACKEND API TESTS")
-        print(f"Base URL: {self.base_url}")
-        print("=" * 70)
-        print()
-        
-        # Run tests in order
-        self.test_health_check()
-        self.test_create_job()
-        self.test_list_jobs()
-        self.test_get_job()
-        self.test_job_processing()
-        self.test_download_audio()
-        self.test_delete_job()
-        
-        # Print summary
-        print("=" * 70)
-        print("TEST SUMMARY")
-        print("=" * 70)
-        print(f"Tests Run: {self.tests_run}")
-        print(f"Tests Passed: {self.tests_passed}")
-        print(f"Tests Failed: {self.tests_run - self.tests_passed}")
-        print(f"Success Rate: {(self.tests_passed / self.tests_run * 100):.1f}%")
-        print("=" * 70)
-        
-        return self.tests_passed == self.tests_run
+            per.append(f"{jid}=ERR({e})")
+            ok_all = False
+    record("cleanup", ok_all, "; ".join(per) if per else "no jobs to delete")
 
 
 def main():
-    tester = TTSChunkerAPITester()
-    success = tester.run_all_tests()
-    return 0 if success else 1
+    print(f"Base API: {API}")
+    test_openapi()
+    test_health()
+
+    v3_jid = test_v3_seed()
+    test_turbo_seed_null()
+    test_studio_seed_null()
+    v2_jid = test_v2_seed()
+
+    test_regenerate_reuses_seed(v3_jid, "v3", "eleven_v3")
+    test_regenerate_reuses_seed(v2_jid, "v2", "eleven_multilingual_v2")
+
+    cleanup()
+
+    print("\n===== SUMMARY =====")
+    total = len(results)
+    passed = sum(1 for ok, _ in results.values() if ok)
+    for name, (ok, ev) in results.items():
+        print(f"  {'OK  ' if ok else 'FAIL'}  {name}: {ev}")
+    print(f"\n{passed}/{total} tests passed")
+    sys.exit(0 if passed == total else 1)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
