@@ -1723,6 +1723,11 @@ def serve_audio_with_range(
 
     file_size = os.path.getsize(path)
     range_header = request.headers.get("range") or request.headers.get("Range")
+    # RFC 7233 §3.1: an unrecognized Range unit MUST be ignored (serve full
+    # 200), not 416. Only well-formed `bytes=...` values proceed to parsing;
+    # 416 is reserved for syntactically valid but unsatisfiable ranges.
+    if range_header is not None and not range_header.lower().startswith("bytes="):
+        range_header = None
 
     disposition_type = "attachment" if as_attachment else "inline"
     disp_value = disposition_type

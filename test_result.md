@@ -238,8 +238,7 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "Audio scrubbing: malformed Range header should fall back to 200 (currently returns 416) — server.py:1758-1767"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -490,4 +489,36 @@ agent_communication:
       SEEDED JOB LEFT IN PLACE for UI verification as instructed.
       Real-world browser scrubbing (well-formed Range headers) is
       fully working — 206 + Content-Range + byte-accurate slicing all
-      verified. Only edge-case is the malformed-Range fallback (#6).
+      verified. Only edge-case is the malformed-Range fallback (#6).  - agent: "testing"
+    message: |
+      RETEST of malformed-Range fallback fix (server.py:1725-1730).
+      Script: /app/backend_test_range_malformed.py
+      Target: https://c13eddd0-b7a5-4e2e-b9f4-46c909c653f2.preview.emergentagent.com/api
+      Seeded job (NOT deleted): 6a6b6ec9879fe7e7aac047a2 (full=721022 B, chunk0=353218 B).
+
+      RESULT: 5/5 PASS.
+
+      1. GET /download with `Range: potato`
+           -> 200, Accept-Ranges: bytes, Content-Length: 721022,
+              no Content-Range, body=721022 B. PASS.
+      2a. GET /download with `Range: bytes=100-200`
+           -> 206, Content-Range: bytes 100-200/721022,
+              Content-Length: 101, body=101 B. PASS (no regression).
+      2b. GET /chunks/0/audio with `Range: bytes=99999999-`
+           -> 416, Content-Range: bytes */353218, body=0 B.
+              PASS (unsatisfiable path preserved — did NOT regress to 200).
+      3. GET /download with `Range: pages=0-100`  (garbage unit)
+           -> 200, Accept-Ranges: bytes, Content-Length: 721022,
+              no Content-Range, body=721022 B. PASS.
+      4. GET /download with `Range: <single space>`
+           (sent via http.client because requests refuses whitespace-only
+           header values)
+           -> 200, Accept-Ranges: bytes, Content-Length: 721022,
+              no Content-Range, body=721022 B. PASS.
+
+      Fix confirmed working per RFC 7233 §3.1 (unrecognized range unit
+      MUST be ignored -> fall through to 200), while RFC 7233 §4.4
+      (syntactically valid but unsatisfiable -> 416) is still correctly
+      enforced. Previously-failing assertion #6 from the last audio
+      Range test is now PASSING. Seeded job left in place for later UI
+      verification as instructed.
